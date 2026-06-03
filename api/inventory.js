@@ -34,10 +34,12 @@ export default async function handler(req, res) {
     const creatorRes = await fetch(
       "https://creator.zoho.com/api/v2/dotcowork/workspace-inventory-manager/function/get_inventory/execute",
       {
-        method: "GET",
+        method: "POST",
         headers: {
           Authorization: `Zoho-oauthtoken ${accessToken}`,
+          "Content-Type": "application/x-www-form-urlencoded",
         },
+        body: "arguments={}",
       }
     );
 
