@@ -49,8 +49,8 @@ export default async function handler(req, res) {
         name:        loc.Location_Name,
         subtitle:    loc.Location_Subtitle,
         address:     loc.Address,
-        maps_url:    (loc.Google_Maps_URL || "").replace(/<[^>]+>/g, "").trim(),
-        website_url: (loc.Website_URL || "").replace(/<[^>]+>/g, "").trim(),
+        maps_url:    String(loc.Google_Maps_URL || "").replace(/<[^>]+>/g, "").trim(),
+        website_url: String(loc.Website_URL || "").replace(/<[^>]+>/g, "").trim(),
         tagline:     loc.Tagline,
         inventory: inventory
           .filter(i => i.Location_Master?.ID == locId)
