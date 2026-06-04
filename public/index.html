@@ -141,6 +141,20 @@ table.inv td{padding:14px 1.5rem;font-size:14px;color:var(--tp)}
 
 .footer{margin-top:3rem;text-align:center;font-size:11px;color:#888;background:#111;border-radius:12px;padding:1.25rem;}
 .footer b{color:var(--brand);font-weight:500}
+ @media(max-width:680px){
+  .summary-grid{grid-template-columns:1fr}
+  .totals-bar{flex-wrap:wrap;padding:1rem}
+  .total-item{flex:0 0 50%;border-left:none;border-bottom:1px solid var(--border2);padding:.75rem}
+  .photo-strip{grid-template-columns:1fr;height:auto}
+  .photo-main img{height:200px}
+  .photo-thumb{display:none}
+  .branch-meta{grid-template-columns:1fr}
+  .mb{border-right:none;border-bottom:1px solid var(--border)}
+  .cta-row{flex-direction:column;align-items:flex-start}
+  .view-full{margin-left:0}
+  table.inv th,table.inv td{padding:10px .75rem;font-size:12px}
+  .wrap{padding:1.5rem 1rem 4rem}
+} 
 </style>
 </head>
 <body>
