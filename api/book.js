@@ -55,7 +55,7 @@ export default async function handler(req, res) {
       `Inventory_Items.ID == ${inventoryItemId} && Booking_Start <= "${booking_end}" && Booking_End >= "${booking_start}"`
     );
     const conflictRes  = await fetch(
-      `${base}/report/Space_Bookings_Report?criteria=${conflictCriteria}&limit=1`,
+      `${base}/report/All_Spaces?criteria=${conflictCriteria}&limit=1`,
       { headers }
     );
     const conflictData = await conflictRes.json();
