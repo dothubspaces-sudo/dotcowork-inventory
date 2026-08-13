@@ -37,7 +37,7 @@ export default async function handler(req, res) {
 
     const [itemsRes, bookingsRes] = await Promise.all([
       fetch(`${base}/Inventory_Items_Report?limit=200`, { headers }),
-      fetch(`${base}/Space_Bookings_Report?criteria=${bookingCriteria}&limit=200`, { headers }),
+      fetch(`${base}/All_Spaces?criteria=${bookingCriteria}&limit=200`, { headers }),
     ]);
 
     const [itemsData, bookingsData] = await Promise.all([
