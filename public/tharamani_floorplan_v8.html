@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>DOT Cowork · Tharamani</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --brand:#F15232;--brand-light:rgba(241,82,50,.1);--brand-mid:rgba(241,82,50,.2);
+  --bg:#fafafa;--surface:#fff;--surface2:#f5f5f7;--surface3:#ebebed;
+  --border:rgba(0,0,0,.08);--border2:rgba(0,0,0,.12);
+  --txt:#1d1d1f;--txt2:#6e6e73;--txt3:#aeaeb2;
+  --avail:#1a8a3c;--avail-bg:rgba(26,138,60,.07);--avail-bd:rgba(26,138,60,.25);
+  --occ:#c0392b;--occ-bg:rgba(192,57,43,.07);--occ-bd:rgba(192,57,43,.25);
+  --mr-bg:rgba(37,99,235,.07);--mr-bd:rgba(37,99,235,.25);--mr-txt:#1d4ed8;
+  --cf-bg:rgba(109,40,217,.07);--cf-bd:rgba(109,40,217,.25);--cf-txt:#6d28d9;
+  --cm-bg:#f5f5f7;--cm-bd:rgba(0,0,0,.1);--cm-txt:#aeaeb2;
+  --radius:16px;--radius-sm:10px;--radius-xs:7px;
+  --shadow-sm:0 1px 2px rgba(0,0,0,.05);
+  --shadow:0 2px 8px rgba(0,0,0,.06),0 0 0 1px rgba(0,0,0,.04);
+  --shadow-lg:0 8px 30px rgba(0,0,0,.1),0 0 0 1px rgba(0,0,0,.04);
+  --f:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;
+}
+html,body{font-family:var(--f);background:var(--bg);color:var(--txt);min-height:100vh;-webkit-font-smoothing:antialiased}
+
+/* ── HEADER ── */
+.hdr{background:rgba(255,255,255,.85);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:0 2rem;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:200}
+.hdr-left{display:flex;align-items:center;gap:12px}
+.back{display:inline-flex;align-items:center;gap:4px;color:var(--brand);font-size:13px;font-weight:500;text-decoration:none;padding:5px 0;transition:opacity .15s}
+.back:hover{opacity:.7}
+.hdiv{width:1px;height:16px;background:var(--border2)}
+.hloc{font-size:13px;font-weight:600;color:var(--txt)}
+.hsub{font-size:11px;color:var(--txt3);margin-top:1px}
+.hright{display:flex;align-items:center;gap:6px}
+.hpip{width:7px;height:7px;border-radius:50%;background:#30d158;animation:pp 2.5s ease infinite}
+@keyframes pp{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.8)}}
+.hlive{font-size:12px;color:var(--txt3);font-weight:500}
+
+/* ── MAIN ── */
+.main{max-width:1380px;margin:0 auto;padding:2rem 2rem 6rem}
+
+/* ── CONTROL BAR ── */
+.ctrlbar{display:flex;align-items:center;gap:1rem;margin-bottom:1.5rem;flex-wrap:wrap}
+
+/* DATE RANGE WIDGET */
+.drange-wrap{position:relative}
+.drange-pill{display:inline-flex;align-items:center;gap:0;background:var(--surface);border:1px solid var(--border2);border-radius:50px;box-shadow:var(--shadow-sm);overflow:hidden;cursor:pointer;transition:box-shadow .2s,border-color .2s}
+.drange-pill:hover{box-shadow:var(--shadow);border-color:rgba(0,0,0,.18)}
+.drange-pill.active{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-light)}
+.dpill-seg{padding:10px 18px;display:flex;flex-direction:column;gap:1px;position:relative;transition:background .15s;min-width:130px}
+.dpill-seg:hover{background:var(--surface2)}
+.dpill-seg.focused{background:var(--brand-light)}
+.dpill-divider{width:1px;background:var(--border2);align-self:stretch;flex-shrink:0;margin:8px 0}
+.dpill-label{font-size:10px;font-weight:600;letter-spacing:.5px;text-transform:uppercase;color:var(--txt3)}
+.dpill-val{font-size:13px;font-weight:500;color:var(--txt)}
+.dpill-val.placeholder{color:var(--txt3);font-weight:400}
+.dpill-clear{padding:8px 14px;display:flex;align-items:center;justify-content:center;color:var(--txt3);font-size:16px;transition:color .15s;cursor:pointer;flex-shrink:0}
+.dpill-clear:hover{color:var(--txt)}
+
+/* CALENDAR DROPDOWN */
+.cal-drop{position:absolute;top:calc(100% + 10px);left:0;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);box-shadow:var(--shadow-lg);padding:1.25rem;z-index:300;display:none;min-width:680px}
+.cal-drop.open{display:flex;gap:1.5rem}
+.cal-month{flex:1}
+.cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem}
+.cal-nav{width:28px;height:28px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:13px;color:var(--txt2);transition:background .15s}
+.cal-nav:hover{background:var(--surface3)}
+.cal-mname{font-size:13px;font-weight:600;color:var(--txt)}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:2px}
+.cal-dow{font-size:10px;font-weight:600;color:var(--txt3);text-align:center;padding:4px 0;letter-spacing:.3px}
+.cal-day{height:36px;border-radius:8px;border:none;background:transparent;cursor:pointer;font-size:13px;font-weight:400;color:var(--txt);transition:background .12s,color .12s;display:flex;align-items:center;justify-content:center;position:relative}
+.cal-day:hover:not(.disabled):not(.empty){background:var(--surface2)}
+.cal-day.today{font-weight:700;color:var(--brand)}
+.cal-day.in-range{background:var(--brand-light);border-radius:0;color:var(--txt)}
+.cal-day.range-start,.cal-day.range-end{background:var(--brand);color:#fff;font-weight:600;border-radius:8px}
+.cal-day.range-start.has-end{border-radius:8px 0 0 8px}
+.cal-day.range-end.has-start{border-radius:0 8px 8px 0}
+.cal-day.disabled{color:var(--txt3);cursor:not-allowed;opacity:.4}
+.cal-day.empty{cursor:default}
+.cal-footer{display:flex;align-items:center;justify-content:space-between;margin-top:1rem;padding-top:1rem;border-top:1px solid var(--border)}
+.cal-hint{font-size:12px;color:var(--txt3)}
+.cal-apply{padding:8px 20px;border-radius:50px;border:none;background:var(--brand);color:#fff;font-size:13px;font-weight:600;font-family:var(--f);cursor:pointer;transition:opacity .15s}
+.cal-apply:hover{opacity:.88}
+
+/* TODAY BTN */
+.today-btn{padding:10px 18px;border-radius:50px;border:1px solid var(--border2);font-size:13px;font-weight:500;color:var(--txt2);background:var(--surface);cursor:pointer;font-family:var(--f);transition:all .15s;box-shadow:var(--shadow-sm);white-space:nowrap}
+.today-btn:hover{border-color:rgba(0,0,0,.2);color:var(--txt);box-shadow:var(--shadow)}
+
+/* SUMMARY PILLS */
+.spills{display:flex;gap:8px;margin-left:auto}
+.spill{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;padding:8px 14px;border-radius:50px;letter-spacing:.2px}
+.spill-av{background:var(--avail-bg);color:var(--avail);border:1px solid var(--avail-bd)}
+.spill-oc{background:var(--occ-bg);color:var(--occ);border:1px solid var(--occ-bd)}
+.spill-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
+.spill-dot-av{background:var(--avail)}
+.spill-dot-oc{background:var(--occ)}
+
+/* LOADING STRIP */
+.lstrip{height:2px;border-radius:2px;overflow:hidden;margin-bottom:1.5rem;opacity:0;transition:opacity .2s;background:var(--border)}
+.lstrip.on{opacity:1}
+.linner{height:100%;background:var(--brand);width:0%;transition:width 1.2s cubic-bezier(.4,0,.2,1);border-radius:2px}
+
+/* LEGEND */
+.leg{display:flex;gap:1rem;flex-wrap:wrap;margin-bottom:1.25rem;align-items:center}
+.li{display:flex;align-items:center;gap:6px;font-size:12px;color:var(--txt2)}
+.ls{width:10px;height:10px;border-radius:3px;flex-shrink:0}
+
+/* FLOOR CARD */
+.fcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1.5rem;box-shadow:var(--shadow);overflow-x:auto}
+.flabel{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:1.25rem;display:flex;align-items:center;gap:8px}
+.flabel-dot{width:6px;height:6px;border-radius:50%;background:var(--brand)}
+svg#fp{display:block;width:100%;height:auto}
+
+/* SVG STATES */
+.av .cb{fill:var(--avail-bg);stroke:var(--avail-bd);stroke-width:1.5;transition:all .25s}
+.av .cn{fill:var(--avail);font-weight:700}.av .st{fill:#aaa}.av .lb{fill:var(--avail);font-weight:600}
+.av .cl{fill:var(--txt);font-weight:600}.av .dt{fill:var(--txt3)}
+.oc .cb{fill:var(--occ-bg);stroke:var(--occ-bd);stroke-width:1.5;transition:all .25s}
+.oc .cn{fill:var(--occ);font-weight:700}.oc .st{fill:#aaa}.oc .lb{fill:var(--occ);font-weight:600}
+.oc .cl{fill:var(--txt);font-weight:600}.oc .dt{fill:var(--txt3)}
+.mr .cb{fill:var(--mr-bg);stroke:var(--mr-bd);stroke-width:1.5}
+.mr .cn{fill:var(--mr-txt);font-weight:700}.mr .st{fill:#6b7280}
+.cf .cb{fill:var(--cf-bg);stroke:var(--cf-bd);stroke-width:1.5}
+.cf .cn{fill:var(--cf-txt);font-weight:700}
+.cm .cb{fill:var(--cm-bg);stroke:var(--cm-bd);stroke-width:1}
+.cm .cn{fill:var(--cm-txt);font-weight:600}
+.od{fill:#fafafa;stroke:rgba(0,0,0,.07);stroke-width:1;stroke-dasharray:5 3}
+.circ{fill:#f7f7f7;stroke:rgba(0,0,0,.07);stroke-width:1}
+.cg{cursor:pointer}
+.cg.av:hover .cb{stroke-width:2!important;fill:rgba(26,138,60,.13);stroke:var(--avail)}
+.cg.oc{cursor:default}
+
+/* EXTERNAL SPACES */
+.extsec{margin-top:1.5rem}
+.extlbl{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:.9rem;display:flex;align-items:center;gap:8px}
+.extgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:.75rem}
+.extcard{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius-sm);padding:1.1rem 1.25rem;box-shadow:var(--shadow-sm);transition:box-shadow .2s,border-color .2s;cursor:pointer;position:relative;overflow:hidden}
+.extcard::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--avail);transition:background .25s}
+.extcard.occ::before{background:var(--occ)}
+.extcard:hover{box-shadow:var(--shadow);border-color:var(--border2)}
+.extcard.occ{cursor:default}
+.extcard-inner{padding-left:.5rem}
+.extname{font-size:14px;font-weight:600;color:var(--txt);margin-bottom:2px}
+.extcap{font-size:12px;color:var(--txt3);margin-bottom:.6rem}
+.extbadge{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 10px;border-radius:20px}
+.extbadge.av{background:var(--avail-bg);color:var(--avail)}
+.extbadge.oc{background:var(--occ-bg);color:var(--occ)}
+.extclient{font-size:12px;color:var(--txt2);margin-top:.5rem;font-weight:500}
+.extdates{font-size:11px;color:var(--txt3);margin-top:2px}
+
+/* TOOLTIP */
+#tt{position:fixed;background:rgba(29,29,31,.95);backdrop-filter:blur(10px);color:#fff;border-radius:12px;padding:11px 15px;font-size:12px;line-height:1.75;pointer-events:none;z-index:9999;display:none;min-width:165px;max-width:230px;box-shadow:0 8px 32px rgba(0,0,0,.2)}
+.ttl{font-weight:700;font-size:13px;color:#fff;margin-bottom:1px}
+.ttt{color:rgba(255,255,255,.5);font-size:11px}
+.tts{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600;margin-top:4px}
+.tts-av{color:#30d158}.tts-oc{color:#ff6961}
+.ttc{color:rgba(255,255,255,.8);font-size:11px;margin-top:2px}
+.tte{color:rgba(255,255,255,.45);font-size:10px}
+.tth{color:rgba(255,255,255,.35);font-size:10px;margin-top:6px;padding-top:6px;border-top:1px solid rgba(255,255,255,.1)}
+
+/* MODAL */
+.ovl{position:fixed;inset:0;background:rgba(0,0,0,.4);backdrop-filter:blur(8px);z-index:1000;display:none;align-items:center;justify-content:center;padding:1.5rem}
+.ovl.open{display:flex}
+.modal{background:#fff;border-radius:20px;padding:0;width:100%;max-width:440px;box-shadow:0 24px 80px rgba(0,0,0,.15);overflow:hidden;animation:modalIn .2s cubic-bezier(.34,1.56,.64,1)}
+@keyframes modalIn{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal-head{padding:1.75rem 1.75rem 1.25rem;border-bottom:1px solid var(--border);position:relative}
+.mclose{position:absolute;top:1.25rem;right:1.25rem;width:30px;height:30px;border-radius:50%;border:none;background:var(--surface2);cursor:pointer;font-size:15px;color:var(--txt2);display:flex;align-items:center;justify-content:center;transition:background .15s}
+.mclose:hover{background:var(--surface3)}
+.mtag{font-size:10px;font-weight:700;letter-spacing:1px;text-transform:uppercase;color:var(--brand);margin-bottom:.4rem}
+.mtitle{font-size:20px;font-weight:700;color:var(--txt);margin-bottom:.2rem;letter-spacing:-.3px}
+.msubt{font-size:13px;color:var(--txt3)}
+.modal-body{padding:1.5rem 1.75rem 1.75rem;display:flex;flex-direction:column;gap:.9rem}
+.frow label{display:block;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--txt3);margin-bottom:.4rem}
+.frow input,.frow select{width:100%;padding:10px 13px;border-radius:var(--radius-xs);border:1px solid var(--border2);font-size:13px;font-family:var(--f);color:var(--txt);outline:none;transition:border .15s,box-shadow .15s;background:#fff}
+.frow input:focus,.frow select:focus{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-light)}
+.flocked{background:var(--surface2)!important;color:var(--txt2);cursor:not-allowed}
+.frow2{display:grid;grid-template-columns:1fr 1fr;gap:.75rem}
+.msubmit{width:100%;padding:13px;border-radius:var(--radius-xs);border:none;background:var(--brand);color:#fff;font-size:14px;font-weight:600;font-family:var(--f);cursor:pointer;transition:opacity .15s,transform .1s;letter-spacing:.1px}
+.msubmit:hover{opacity:.92}
+.msubmit:active{transform:scale(.99)}
+.msubmit:disabled{opacity:.45;cursor:not-allowed}
+.mmsg{font-size:12px;text-align:center;min-height:16px;font-weight:500}
+.mmsg.ok{color:var(--avail)}.mmsg.err{color:var(--occ)}
+
+@media(max-width:700px){
+  .main{padding:1.25rem 1rem 5rem}
+  .ctrlbar{gap:.75rem}
+  .cal-drop{min-width:320px;flex-direction:column}
+  .spills{margin-left:0;width:100%}
+  .drange-pill{width:100%}
+  .frow2{grid-template-columns:1fr}
+}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="hdr">
+  <div class="hdr-left">
+    <a class="back" href="/">← Inventory</a>
+    <div class="hdiv"></div>
+    <div>
+      <div class="hloc">Tharamani · Floor Plan</div>
+    </div>
+  </div>
+  <div class="hright">
+    <span class="hpip"></span>
+    <span class="hlive">Live</span>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- CONTROL BAR -->
+  <div class="ctrlbar">
+
+    <!-- DATE RANGE PICKER -->
+    <div class="drange-wrap" id="drWrap">
+      <div class="drange-pill" id="drPill" onclick="toggleCal()">
+        <div class="dpill-seg" id="segStart">
+          <span class="dpill-label">Check in</span>
+          <span class="dpill-val placeholder" id="dispStart">Add date</span>
+        </div>
+        <div class="dpill-divider"></div>
+        <div class="dpill-seg" id="segEnd">
+          <span class="dpill-label">Check out</span>
+          <span class="dpill-val placeholder" id="dispEnd">Add date</span>
+        </div>
+        <div class="dpill-clear" id="drClear" onclick="clearDates(event)" style="display:none">×</div>
+      </div>
+
+      <!-- CALENDAR DROPDOWN -->
+      <div class="cal-drop" id="calDrop">
+        <div class="cal-month" id="calLeft"></div>
+        <div class="cal-month" id="calRight"></div>
+        <div style="position:absolute;bottom:1.25rem;left:1.25rem;right:1.25rem;display:flex;align-items:center;justify-content:space-between;border-top:1px solid var(--border);padding-top:1rem">
+          <span class="cal-hint" id="calHint">Select check-in date</span>
+          <button class="cal-apply" onclick="applyDates()">Apply</button>
+        </div>
+      </div>
+    </div>
+
+    <button class="today-btn" onclick="setToday()">Today</button>
+
+    <div class="spills">
+      <span class="spill spill-av"><span class="spill-dot spill-dot-av"></span><span id="pav">— available</span></span>
+      <span class="spill spill-oc"><span class="spill-dot spill-dot-oc"></span><span id="poc">— booked</span></span>
+    </div>
+  </div>
+
+  <div class="lstrip" id="ls"><div class="linner" id="li"></div></div>
+
+  <!-- LEGEND -->
+  <div class="leg">
+    <div class="li"><div class="ls" style="background:var(--avail-bg);border:1.5px solid var(--avail-bd)"></div>Available — click to book</div>
+    <div class="li"><div class="ls" style="background:var(--occ-bg);border:1.5px solid var(--occ-bd)"></div>Booked</div>
+    <div class="li"><div class="ls" style="background:var(--mr-bg);border:1.5px solid var(--mr-bd)"></div>Meeting room</div>
+    <div class="li"><div class="ls" style="background:var(--cf-bg);border:1.5px solid var(--cf-bd)"></div>Conference</div>
+    <div class="li"><div class="ls" style="background:var(--cm-bg);border:1.5px solid var(--cm-bd)"></div>Common area</div>
+  </div>
+
+  <!-- FLOOR PLAN -->
+  <div class="fcard">
+    <div class="flabel"><span class="flabel-dot"></span>Tharamani · Ground Floor</div>
+    <svg id="fp" viewBox="0 0 1260 1020" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="1260" height="1020" fill="#ebebed"/>
+      <rect x="270" y="0" width="790" height="1000" fill="#fafafa"/>
+      <rect x="1060" y="0" width="130" height="360" fill="#fafafa"/>
+      <polygon points="270,0 1190,0 1190,360 1060,360 1060,1000 270,1000" fill="none" stroke="#c7c7cc" stroke-width="2.5"/>
+      <!-- Common outside -->
+      <g class="cm"><rect class="cb" x="8" y="8" width="254" height="155" rx="4"/><text class="cn" x="135" y="82" text-anchor="middle" font-size="10">RECEPTION</text></g>
+      <g class="cm"><rect class="cb" x="8" y="170" width="254" height="205" rx="4"/><text class="cn" x="135" y="255" text-anchor="middle" font-size="10">DRY PANTRY</text><text class="cn" x="135" y="271" text-anchor="middle" font-size="10">&amp; RECREATION</text></g>
+      <!-- TOP ROW -->
+      <g class="mr"><rect class="cb" x="278" y="8" width="160" height="154" rx="4"/><text class="cn" x="358" y="76" text-anchor="middle" font-size="11">MEETING 1</text><text class="st" x="358" y="93" text-anchor="middle" font-size="9">7 PAX</text></g>
+      <g class="cg av" id="g1" onmouseenter="tip(event,1)" onmouseleave="ht()"><rect class="cb" x="446" y="8" width="126" height="154" rx="4"/><text class="cn" x="454" y="28" font-size="9">C-01</text><text class="st" x="509" y="76" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="509" y="94" text-anchor="middle" font-size="8" id="lb1">Available</text><text class="cl" x="509" y="112" text-anchor="middle" font-size="7.5" id="cl1"></text><text class="dt" x="509" y="128" text-anchor="middle" font-size="7" id="dt1"></text></g>
+      <g class="cg av" id="g2" onmouseenter="tip(event,2)" onmouseleave="ht()"><rect class="cb" x="580" y="8" width="126" height="154" rx="4"/><text class="cn" x="588" y="28" font-size="9">C-02</text><text class="st" x="643" y="76" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="643" y="94" text-anchor="middle" font-size="8" id="lb2">Available</text><text class="cl" x="643" y="112" text-anchor="middle" font-size="7.5" id="cl2"></text><text class="dt" x="643" y="128" text-anchor="middle" font-size="7" id="dt2"></text></g>
+      <g class="cg av" id="g3" onmouseenter="tip(event,3)" onmouseleave="ht()"><rect class="cb" x="714" y="8" width="106" height="154" rx="4"/><text class="cn" x="722" y="28" font-size="9">C-03</text><text class="st" x="767" y="76" text-anchor="middle" font-size="8">3-seater</text><text class="lb" x="767" y="94" text-anchor="middle" font-size="8" id="lb3">Available</text><text class="cl" x="767" y="112" text-anchor="middle" font-size="7.5" id="cl3"></text><text class="dt" x="767" y="128" text-anchor="middle" font-size="7" id="dt3"></text></g>
+      <g class="cg av" id="g4" onmouseenter="tip(event,4)" onmouseleave="ht()"><rect class="cb" x="828" y="8" width="126" height="154" rx="4"/><text class="cn" x="836" y="28" font-size="9">C-04</text><text class="st" x="891" y="76" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="891" y="94" text-anchor="middle" font-size="8" id="lb4">Available</text><text class="cl" x="891" y="112" text-anchor="middle" font-size="7.5" id="cl4"></text><text class="dt" x="891" y="128" text-anchor="middle" font-size="7" id="dt4"></text></g>
+      <g class="mr"><rect class="cb" x="962" y="8" width="90" height="154" rx="4"/><text class="cn" x="1007" y="72" text-anchor="middle" font-size="10">MTG 2</text><text class="st" x="1007" y="89" text-anchor="middle" font-size="8">7 PAX</text></g>
+      <g class="cf"><rect class="cb" x="1068" y="8" width="114" height="344" rx="4"/><text class="cn" x="1125" y="166" text-anchor="middle" font-size="10">CONF.</text><text class="cn" x="1125" y="183" text-anchor="middle" font-size="9">FC011</text></g>
+      <!-- ALLEYS -->
+      <rect x="278" y="162" width="782" height="16" fill="#e5e5ea"/>
+      <rect class="circ" x="278" y="178" width="218" height="200" rx="4"/>
+      <text fill="#c7c7cc" x="387" y="272" text-anchor="middle" font-size="9">circulation</text>
+      <rect x="496" y="178" width="14" height="630" fill="#e5e5ea"/>
+      <!-- ZONE 53 -->
+      <text x="714" y="193" text-anchor="middle" font-size="7" fill="#c7c7cc" font-weight="600" letter-spacing="1.5">53</text>
+      <g class="cg av" id="g5" onmouseenter="tip(event,5)" onmouseleave="ht()"><rect class="cb" x="518" y="198" width="98" height="152" rx="4"/><text class="cn" x="526" y="217" font-size="9">C-05</text><text class="st" x="567" y="260" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="567" y="278" text-anchor="middle" font-size="8" id="lb5">Avail</text><text class="cl" x="567" y="296" text-anchor="middle" font-size="7" id="cl5"></text><text class="dt" x="567" y="310" text-anchor="middle" font-size="6.5" id="dt5"></text></g>
+      <g class="cg av" id="g6" onmouseenter="tip(event,6)" onmouseleave="ht()"><rect class="cb" x="622" y="198" width="98" height="152" rx="4"/><text class="cn" x="630" y="217" font-size="9">C-06</text><text class="st" x="671" y="260" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="671" y="278" text-anchor="middle" font-size="8" id="lb6">Avail</text><text class="cl" x="671" y="296" text-anchor="middle" font-size="7" id="cl6"></text><text class="dt" x="671" y="310" text-anchor="middle" font-size="6.5" id="dt6"></text></g>
+      <g class="cg av" id="g7" onmouseenter="tip(event,7)" onmouseleave="ht()"><rect class="cb" x="726" y="198" width="98" height="152" rx="4"/><text class="cn" x="734" y="217" font-size="9">C-07</text><text class="st" x="775" y="260" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="775" y="278" text-anchor="middle" font-size="8" id="lb7">Avail</text><text class="cl" x="775" y="296" text-anchor="middle" font-size="7" id="cl7"></text><text class="dt" x="775" y="310" text-anchor="middle" font-size="6.5" id="dt7"></text></g>
+      <g class="cg av" id="g8" onmouseenter="tip(event,8)" onmouseleave="ht()"><rect class="cb" x="830" y="198" width="98" height="152" rx="4"/><text class="cn" x="838" y="217" font-size="9">C-08</text><text class="st" x="879" y="260" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="879" y="278" text-anchor="middle" font-size="8" id="lb8">Avail</text><text class="cl" x="879" y="296" text-anchor="middle" font-size="7" id="cl8"></text><text class="dt" x="879" y="310" text-anchor="middle" font-size="6.5" id="dt8"></text></g>
+      <g class="cg av" id="g11" onmouseenter="tip(event,11)" onmouseleave="ht()"><rect class="cb" x="518" y="358" width="410" height="108" rx="4"/><text class="cn" x="526" y="377" font-size="9">C-11</text><text class="st" x="723" y="402" text-anchor="middle" font-size="9">5-seater cabin</text><text class="lb" x="723" y="420" text-anchor="middle" font-size="9" id="lb11">Available</text><text class="cl" x="723" y="437" text-anchor="middle" font-size="7.5" id="cl11"></text><text class="dt" x="723" y="452" text-anchor="middle" font-size="7" id="dt11"></text></g>
+      <rect x="518" y="466" width="410" height="10" fill="#e5e5ea"/>
+      <g class="cg av" id="g12" onmouseenter="tip(event,12)" onmouseleave="ht()"><rect class="cb" x="518" y="476" width="200" height="136" rx="4"/><text class="cn" x="526" y="495" font-size="9">C-12</text><text class="st" x="618" y="533" text-anchor="middle" font-size="9">5-seater cabin</text><text class="lb" x="618" y="551" text-anchor="middle" font-size="9" id="lb12">Available</text><text class="cl" x="618" y="567" text-anchor="middle" font-size="7.5" id="cl12"></text></g>
+      <g class="cg av" id="g13" onmouseenter="tip(event,13)" onmouseleave="ht()"><rect class="cb" x="726" y="476" width="202" height="136" rx="4"/><text class="cn" x="734" y="495" font-size="9">C-13</text><text class="st" x="827" y="533" text-anchor="middle" font-size="9">5-seater cabin</text><text class="lb" x="827" y="551" text-anchor="middle" font-size="9" id="lb13">Available</text><text class="cl" x="827" y="567" text-anchor="middle" font-size="7.5" id="cl13"></text></g>
+      <rect x="518" y="612" width="410" height="10" fill="#e5e5ea"/>
+      <rect class="od" x="518" y="622" width="410" height="190" rx="4"/>
+      <text x="723" y="710" text-anchor="middle" font-size="11" font-weight="600" fill="#c7c7cc">30-SEAT OPEN WORKSPACE</text>
+      <text x="723" y="728" text-anchor="middle" font-size="8" fill="#d1d1d6">open hot desks</text>
+      <rect x="518" y="812" width="410" height="10" fill="#e5e5ea"/>
+      <rect class="od" x="518" y="822" width="410" height="80" rx="14"/>
+      <text x="723" y="866" text-anchor="middle" font-size="10" font-weight="600" fill="#c7c7cc">INFORMAL WORKSPACE</text>
+      <rect fill="#ff6961" x="928" y="612" width="4" height="100" rx="2" opacity=".5"/>
+      <text font-size="6" fill="#ff6961" x="934" y="636" font-weight="600">ACCESS</text>
+      <text font-size="6" fill="#ff6961" x="934" y="647">DOOR</text>
+      <rect x="928" y="178" width="6" height="822" fill="#e5e5ea"/>
+      <!-- ZONE 35 -->
+      <text x="387" y="393" text-anchor="middle" font-size="7" fill="#c7c7cc" font-weight="600" letter-spacing="1.5">35</text>
+      <g class="cg av" id="g15" onmouseenter="tip(event,15)" onmouseleave="ht()"><rect class="cb" x="278" y="400" width="218" height="135" rx="4"/><text class="cn" x="286" y="419" font-size="9">C-15</text><text class="st" x="387" y="457" text-anchor="middle" font-size="9">10-seater</text><text class="lb" x="387" y="475" text-anchor="middle" font-size="9" id="lb15">Available</text><text class="cl" x="387" y="491" text-anchor="middle" font-size="7.5" id="cl15"></text></g>
+      <rect x="278" y="535" width="218" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g16" onmouseenter="tip(event,16)" onmouseleave="ht()"><rect class="cb" x="278" y="543" width="218" height="135" rx="4"/><text class="cn" x="286" y="562" font-size="9">C-16</text><text class="st" x="387" y="600" text-anchor="middle" font-size="9">10-seater</text><text class="lb" x="387" y="618" text-anchor="middle" font-size="9" id="lb16">Available</text><text class="cl" x="387" y="634" text-anchor="middle" font-size="7.5" id="cl16"></text></g>
+      <rect x="278" y="678" width="218" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g17" onmouseenter="tip(event,17)" onmouseleave="ht()"><rect class="cb" x="278" y="686" width="218" height="135" rx="4"/><text class="cn" x="286" y="705" font-size="9">C-17</text><text class="st" x="387" y="743" text-anchor="middle" font-size="9">10-seater</text><text class="lb" x="387" y="761" text-anchor="middle" font-size="9" id="lb17">Available</text><text class="cl" x="387" y="777" text-anchor="middle" font-size="7.5" id="cl17"></text></g>
+      <rect x="278" y="821" width="218" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g18" onmouseenter="tip(event,18)" onmouseleave="ht()"><rect class="cb" x="278" y="829" width="218" height="108" rx="4"/><text class="cn" x="286" y="848" font-size="9">C-18</text><text class="st" x="387" y="874" text-anchor="middle" font-size="9">5-seater</text><text class="lb" x="387" y="892" text-anchor="middle" font-size="9" id="lb18">Available</text><text class="cl" x="387" y="908" text-anchor="middle" font-size="7.5" id="cl18"></text></g>
+      <rect x="278" y="937" width="218" height="8" fill="#e5e5ea"/>
+      <g class="cm"><rect class="cb" x="278" y="945" width="105" height="47" rx="4"/><text class="cn" x="330" y="966" text-anchor="middle" font-size="8">SERVER ROOM</text></g>
+      <g class="cm"><rect class="cb" x="391" y="945" width="105" height="47" rx="4"/><text class="cn" x="443" y="958" text-anchor="middle" font-size="8">PRINTER &amp;</text><text class="cn" x="443" y="974" text-anchor="middle" font-size="8">STAT.</text></g>
+      <rect x="496" y="378" width="14" height="622" fill="#e5e5ea"/>
+      <!-- ZONE 33 -->
+      <text x="994" y="193" text-anchor="middle" font-size="7" fill="#c7c7cc" font-weight="600" letter-spacing="1.5">33</text>
+      <g class="cg av" id="g9" onmouseenter="tip(event,9)" onmouseleave="ht()"><rect class="cb" x="934" y="198" width="120" height="116" rx="4"/><text class="cn" x="942" y="217" font-size="9">C-09</text><text class="st" x="994" y="247" text-anchor="middle" font-size="8">3-seater</text><text class="lb" x="994" y="265" text-anchor="middle" font-size="8" id="lb9">Available</text><text class="cl" x="994" y="281" text-anchor="middle" font-size="7" id="cl9"></text></g>
+      <rect x="934" y="314" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g10" onmouseenter="tip(event,10)" onmouseleave="ht()"><rect class="cb" x="934" y="322" width="120" height="116" rx="4"/><text class="cn" x="942" y="341" font-size="9">C-10</text><text class="st" x="994" y="371" text-anchor="middle" font-size="8">3-seater</text><text class="lb" x="994" y="389" text-anchor="middle" font-size="8" id="lb10">Available</text><text class="cl" x="994" y="405" text-anchor="middle" font-size="7" id="cl10"></text></g>
+      <rect x="934" y="438" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g14" onmouseenter="tip(event,14)" onmouseleave="ht()"><rect class="cb" x="934" y="446" width="120" height="116" rx="4"/><text class="cn" x="942" y="465" font-size="9">C-14</text><text class="st" x="994" y="495" text-anchor="middle" font-size="8">3-seater</text><text class="lb" x="994" y="513" text-anchor="middle" font-size="8" id="lb14">Available</text><text class="cl" x="994" y="529" text-anchor="middle" font-size="7" id="cl14"></text></g>
+      <rect x="934" y="562" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g19" onmouseenter="tip(event,19)" onmouseleave="ht()"><rect class="cb" x="934" y="570" width="120" height="108" rx="4"/><text class="cn" x="942" y="589" font-size="9">C-19</text><text class="st" x="994" y="613" text-anchor="middle" font-size="8">6-seater</text><text class="lb" x="994" y="631" text-anchor="middle" font-size="8" id="lb19">Available</text><text class="cl" x="994" y="647" text-anchor="middle" font-size="7" id="cl19"></text></g>
+      <rect x="934" y="678" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g20" onmouseenter="tip(event,20)" onmouseleave="ht()"><rect class="cb" x="934" y="686" width="120" height="108" rx="4"/><text class="cn" x="942" y="705" font-size="9">C-20</text><text class="st" x="994" y="729" text-anchor="middle" font-size="8">6-seater</text><text class="lb" x="994" y="747" text-anchor="middle" font-size="8" id="lb20">Available</text><text class="cl" x="994" y="763" text-anchor="middle" font-size="7" id="cl20"></text></g>
+      <rect x="934" y="794" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g21" onmouseenter="tip(event,21)" onmouseleave="ht()"><rect class="cb" x="934" y="802" width="120" height="108" rx="4"/><text class="cn" x="942" y="821" font-size="9">C-21</text><text class="st" x="994" y="845" text-anchor="middle" font-size="8">6-seater</text><text class="lb" x="994" y="863" text-anchor="middle" font-size="8" id="lb21">Available</text><text class="cl" x="994" y="879" text-anchor="middle" font-size="7" id="cl21"></text></g>
+      <rect x="934" y="910" width="120" height="8" fill="#e5e5ea"/>
+      <g class="cg av" id="g22" onmouseenter="tip(event,22)" onmouseleave="ht()"><rect class="cb" x="934" y="918" width="120" height="74" rx="4"/><text class="cn" x="942" y="937" font-size="9">C-22</text><text class="st" x="994" y="949" text-anchor="middle" font-size="8">6-seater</text><text class="lb" x="994" y="965" text-anchor="middle" font-size="8" id="lb22">Available</text><text class="cl" x="994" y="979" text-anchor="middle" font-size="7" id="cl22"></text></g>
+    </svg>
+  </div>
+
+  <!-- EXTERNAL SPACES -->
+  <div class="extsec">
+    <div class="extlbl"><span class="flabel-dot"></span>External spaces · within premises</div>
+    <div class="extgrid">
+      <div class="extcard" id="ext-training">
+        <div class="extcard-inner">
+          <div class="extname">Training Room</div>
+          <div class="extcap">50 PAX · Tidel Park</div>
+          <span class="extbadge av" id="ext-training-badge">● Available</span>
+          <div class="extclient" id="ext-training-client"></div>
+          <div class="extdates" id="ext-training-dates"></div>
+        </div>
+      </div>
+      <div class="extcard" id="ext-auditorium">
+        <div class="extcard-inner">
+          <div class="extname">Auditorium</div>
+          <div class="extcap">500 PAX · Tidel Park</div>
+          <span class="extbadge av" id="ext-auditorium-badge">● Available</span>
+          <div class="extclient" id="ext-auditorium-client"></div>
+          <div class="extdates" id="ext-auditorium-dates"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- TOOLTIP -->
+<div id="tt">
+  <div class="ttl" id="ttl"></div>
+  <div class="ttt" id="ttt"></div>
+  <div class="tts" id="tts"></div>
+  <div class="ttc" id="ttc"></div>
+  <div class="tte" id="tte"></div>
+  <div class="tth" id="tth"></div>
+</div>
+
+<!-- BOOKING MODAL -->
+<div class="ovl" id="ovl">
+  <div class="modal">
+    <div class="modal-head">
+      <button class="mclose" onclick="closeModal()">✕</button>
+      <div class="mtag">New Booking</div>
+      <div class="mtitle" id="mtitle"></div>
+      <div class="msubt" id="msubt"></div>
+    </div>
+    <div class="modal-body">
+      <div class="frow"><label>Space</label><input class="flocked" id="f-space" type="text" readonly/></div>
+      <div class="frow"><label>Client Name</label><input id="f-client" type="text" placeholder="e.g. Acme Technologies"/></div>
+      <div class="frow2">
+        <div class="frow" style="margin-bottom:0"><label>Start Date</label><input id="f-start" type="date"/></div>
+        <div class="frow" style="margin-bottom:0"><label>End Date</label><input id="f-end" type="date"/></div>
+      </div>
+      <div class="frow"><label>Purpose</label>
+        <select id="f-purpose"><option value="">Select purpose</option><option>Training</option><option>Private Cabin</option><option>Event</option><option>Meeting</option><option>Other</option></select>
+      </div>
+      <div class="frow"><label>Total PAX</label><input id="f-pax" type="number" min="1" placeholder="Number of people"/></div>
+      <button class="msubmit" id="msbtn" onclick="submitBooking()">Confirm Booking</button>
+      <div class="mmsg" id="mmsg"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── CABIN DATA ──
+const CABINS={
+  1:{seats:5,type:'5-seater'},2:{seats:5,type:'5-seater'},
+  3:{seats:3,type:'3-seater'},4:{seats:5,type:'5-seater'},
+  5:{seats:2,type:'2-seater'},6:{seats:2,type:'2-seater'},
+  7:{seats:2,type:'2-seater'},8:{seats:2,type:'2-seater'},
+  9:{seats:3,type:'3-seater'},10:{seats:3,type:'3-seater'},
+  11:{seats:5,type:'5-seater'},12:{seats:5,type:'5-seater'},
+  13:{seats:5,type:'5-seater'},14:{seats:3,type:'3-seater'},
+  15:{seats:10,type:'10-seater'},16:{seats:10,type:'10-seater'},
+  17:{seats:10,type:'10-seater'},18:{seats:5,type:'5-seater'},
+  19:{seats:6,type:'6-seater'},20:{seats:6,type:'6-seater'},
+  21:{seats:6,type:'6-seater'},22:{seats:6,type:'6-seater'},
+};
+const EXT={
+  training:{label:'Training Room',key:'Training Room',cap:50},
+  auditorium:{label:'Auditorium',key:'Auditorium',cap:500},
+};
+
+let live={}, sel=null;
+
+// ── DATE RANGE STATE ──
+let rangeStart=null, rangeEnd=null, picking=null; // 'start'|'end'|null
+let calBase=new Date(); calBase.setDate(1);
+
+function tod(){return new Date().toISOString().split('T')[0];}
+function fmtDisp(d){if(!d)return null;const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short'});}
+function fmtFull(d){if(!d)return'';const dt=new Date(d+'T00:00:00');return dt.toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'});}
+function dateStr(d){const y=d.getFullYear(),m=String(d.getMonth()+1).padStart(2,'0'),dd=String(d.getDate()).padStart(2,'0');return`${y}-${m}-${dd}`;}
+
+function updatePill(){
+  const ds=document.getElementById('dispStart');
+  const de=document.getElementById('dispEnd');
+  const clr=document.getElementById('drClear');
+  if(rangeStart){ds.textContent=fmtDisp(rangeStart);ds.classList.remove('placeholder');}
+  else{ds.textContent='Add date';ds.classList.add('placeholder');}
+  if(rangeEnd){de.textContent=fmtDisp(rangeEnd);de.classList.remove('placeholder');}
+  else{de.textContent='Add date';de.classList.add('placeholder');}
+  clr.style.display=(rangeStart||rangeEnd)?'flex':'none';
+}
+
+function clearDates(e){e.stopPropagation();rangeStart=null;rangeEnd=null;updatePill();closeCal();load();}
+
+// ── CALENDAR ──
+const DAYS=['Su','Mo','Tu','We','Th','Fr','Sa'];
+const MONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function renderCal(){
+  const l=new Date(calBase);
+  const r=new Date(calBase);r.setMonth(r.getMonth()+1);
+  document.getElementById('calLeft').innerHTML=renderMonth(l,true);
+  document.getElementById('calRight').innerHTML=renderMonth(r,false);
+  const hint=!rangeStart?'Select check-in date':!rangeEnd?'Now select check-out date':'';
+  document.getElementById('calHint').textContent=hint;
+}
+
+function renderMonth(d,isLeft){
+  const y=d.getFullYear(),m=d.getMonth();
+  const first=new Date(y,m,1).getDay();
+  const days=new Date(y,m+1,0).getDate();
+  const today=tod();
+  let h=`<div style="margin-bottom:1rem">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.9rem">
+      ${isLeft?`<button class="cal-nav" onclick="shiftCal(-1)">‹</button>`:'<div style="width:28px"></div>'}
+      <span style="font-size:13px;font-weight:600;color:var(--txt)">${MONTHS[m]} ${y}</span>
+      ${!isLeft?`<button class="cal-nav" onclick="shiftCal(1)">›</button>`:'<div style="width:28px"></div>'}
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:2px">
+      ${DAYS.map(dd=>`<div style="font-size:10px;font-weight:600;color:var(--txt3);text-align:center;padding:4px 0;letter-spacing:.3px">${dd}</div>`).join('')}`;
+  for(let i=0;i<first;i++)h+=`<div class="cal-day empty"></div>`;
+  for(let i=1;i<=days;i++){
+    const ds=`${y}-${String(m+1).padStart(2,'0')}-${String(i).padStart(2,'0')}`;
+    let cls='cal-day';
+    const isToday=ds===today;
+    const isStart=ds===rangeStart;
+    const isEnd=ds===rangeEnd;
+    const inRange=rangeStart&&rangeEnd&&ds>rangeStart&&ds<rangeEnd;
+    if(isToday)cls+=' today';
+    if(isStart){cls+=' range-start';if(rangeEnd)cls+=' has-end';}
+    if(isEnd){cls+=' range-end';if(rangeStart)cls+=' has-start';}
+    if(inRange)cls+=' in-range';
+    h+=`<button class="${cls}" onclick="pickDay('${ds}')">${i}</button>`;
+  }
+  h+=`</div></div>`;
+  return h;
+}
+
+function shiftCal(dir){calBase.setMonth(calBase.getMonth()+dir);renderCal();}
+
+function pickDay(ds){
+  if(!rangeStart||rangeEnd||(rangeStart&&ds<rangeStart)){
+    rangeStart=ds;rangeEnd=null;
+  } else {
+    rangeEnd=ds;
+  }
+  updatePill();renderCal();
+  if(rangeStart&&rangeEnd) setTimeout(applyDates,400);
+}
+
+function applyDates(){
+  closeCal();
+  if(rangeStart&&rangeEnd) load();
+  else if(rangeStart) load();
+}
+
+function toggleCal(){
+  const drop=document.getElementById('calDrop');
+  const pill=document.getElementById('drPill');
+  if(drop.classList.contains('open')){closeCal();}
+  else{drop.classList.add('open');pill.classList.add('active');renderCal();}
+}
+function closeCal(){
+  document.getElementById('calDrop').classList.remove('open');
+  document.getElementById('drPill').classList.remove('active');
+}
+document.addEventListener('click',e=>{
+  if(!document.getElementById('drWrap').contains(e.target))closeCal();
+});
+
+function setToday(){
+  const t=tod();rangeStart=t;rangeEnd=t;
+  updatePill();load();
+}
+
+// ── LOADING ──
+function startL(){const b=document.getElementById('ls'),i=document.getElementById('li');b.classList.add('on');i.style.width='0%';setTimeout(()=>i.style.width='72%',60);}
+function endL(){const i=document.getElementById('li');i.style.width='100%';setTimeout(()=>{document.getElementById('ls').classList.remove('on');i.style.width='0%';},500);}
+
+// ── LOAD AVAILABILITY ──
+async function load(){
+  // Use rangeStart as the primary check date; if range, pass both
+  const dateParam=rangeStart||tod();
+  const endParam=rangeEnd||rangeStart||tod();
+  startL();
+  try{
+    const r=await fetch(`/api/availability?date=${dateParam}&end_date=${endParam}`);
+    const d=await r.json();
+    if(d.status==='success'){
+      live={};(d.spaces||[]).forEach(s=>{live[s.cabin_number]=s;});
+      applyAll();
+    }
+  }catch(e){console.error(e);}
+  endL();
+}
+
+function applyAll(){
+  let av=0,oc=0;
+  Object.keys(CABINS).forEach(n=>{
+    const num=parseInt(n),cn='C-'+String(num).padStart(2,'0');
+    const d=live[cn];const isOc=d&&d.status==='Booked';
+    isOc?oc++:av++;setCabin(num,isOc,d);
+  });
+  Object.keys(EXT).forEach(k=>{
+    const sp=EXT[k],d=live[sp.key];const isOc=d&&d.status==='Booked';
+    isOc?oc++:av++;setExt(k,isOc,d);
+  });
+  document.getElementById('pav').textContent=av+' available';
+  document.getElementById('poc').textContent=oc+' booked';
+}
+
+function setCabin(num,isOc,data){
+  const g=document.getElementById('g'+num);if(!g)return;
+  g.className='cg '+(isOc?'oc':'av');
+  g.onclick=isOc?null:()=>openModal('C-'+String(num).padStart(2,'0'),CABINS[num]);
+  const lbEl=document.getElementById('lb'+num);
+  const clEl=document.getElementById('cl'+num);
+  const dtEl=document.getElementById('dt'+num);
+  if(lbEl)lbEl.textContent=isOc?'Booked':(num<=8?'Avail':'Available');
+  if(clEl)clEl.textContent=isOc&&data?.client?data.client:'';
+  if(dtEl)dtEl.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+}
+function setExt(key,isOc,data){
+  const card=document.getElementById('ext-'+key);
+  const badge=document.getElementById('ext-'+key+'-badge');
+  const client=document.getElementById('ext-'+key+'-client');
+  const dates=document.getElementById('ext-'+key+'-dates');
+  if(!card)return;
+  card.className='extcard'+(isOc?' occ':'');
+  card.onclick=isOc?null:()=>openModal(EXT[key].label,{seats:EXT[key].cap,type:EXT[key].label});
+  badge.className='extbadge '+(isOc?'oc':'av');
+  badge.textContent=isOc?'● Booked':'● Available';
+  client.textContent=isOc&&data?.client?data.client:'';
+  dates.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+}
+
+// ── TOOLTIP ──
+const ttEl=document.getElementById('tt');
+function tip(e,num){
+  const d=CABINS[num]||{},cn='C-'+String(num).padStart(2,'0');
+  const ld=live[cn];const isOc=ld&&ld.status==='Booked';
+  document.getElementById('ttl').textContent=cn;
+  document.getElementById('ttt').textContent=d.seats+' seats · '+d.type;
+  const s=document.getElementById('tts');
+  s.className='tts '+(isOc?'tts-oc':'tts-av');
+  s.textContent=isOc?'● Booked':'● Available';
+  document.getElementById('ttc').textContent=isOc&&ld?.client?ld.client:'';
+  document.getElementById('tte').textContent=isOc&&ld?.booking_end?'until '+fmtFull(ld.booking_end):'';
+  document.getElementById('tth').textContent=isOc?'':'Click to book this space';
+  ttEl.style.display='block';mv(e);
+}
+function mv(e){ttEl.style.left=(e.clientX+16)+'px';ttEl.style.top=(e.clientY-8)+'px';}
+function ht(){ttEl.style.display='none';}
+document.addEventListener('mousemove',e=>{if(ttEl.style.display==='block')mv(e);});
+
+// ── MODAL ──
+function openModal(title,data){
+  sel={cabinNum:title,type:data.type,seats:data.seats};
+  document.getElementById('mtitle').textContent=title;
+  document.getElementById('msubt').textContent=(data.type||title)+' · Tharamani';
+  document.getElementById('f-space').value=title;
+  document.getElementById('f-client').value='';
+  document.getElementById('f-start').value=rangeStart||tod();
+  document.getElementById('f-end').value=rangeEnd||'';
+  document.getElementById('f-purpose').value='';
+  document.getElementById('f-pax').value=data.seats||'';
+  document.getElementById('mmsg').textContent='';
+  document.getElementById('msbtn').disabled=false;
+  document.getElementById('msbtn').textContent='Confirm Booking';
+  document.getElementById('ovl').classList.add('open');ht();
+}
+function closeModal(){document.getElementById('ovl').classList.remove('open');}
+document.getElementById('ovl').addEventListener('click',e=>{if(e.target.id==='ovl')closeModal();});
+
+async function submitBooking(){
+  const client=document.getElementById('f-client').value.trim();
+  const start=document.getElementById('f-start').value;
+  const end=document.getElementById('f-end').value;
+  const purpose=document.getElementById('f-purpose').value;
+  const pax=document.getElementById('f-pax').value;
+  const msg=document.getElementById('mmsg');
+  const btn=document.getElementById('msbtn');
+  if(!client){msg.className='mmsg err';msg.textContent='Client name is required.';return;}
+  if(!start||!end){msg.className='mmsg err';msg.textContent='Select start and end dates.';return;}
+  if(end<start){msg.className='mmsg err';msg.textContent='End date must be after start date.';return;}
+  if(!purpose){msg.className='mmsg err';msg.textContent='Select a purpose.';return;}
+  btn.disabled=true;btn.textContent='Saving…';msg.textContent='';
+  try{
+    const r=await fetch('/api/book',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({cabin_number:sel.cabinNum,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0})});
+    const d=await r.json();
+    if(d.status==='success'){
+      msg.className='mmsg ok';msg.textContent='Booking confirmed.';
+      setTimeout(()=>{closeModal();load();},1200);
+    }else throw new Error(d.error||'Booking failed');
+  }catch(e){
+    msg.className='mmsg err';msg.textContent=e.message||'Something went wrong.';
+    btn.disabled=false;btn.textContent='Confirm Booking';
+  }
+}
+
+// ── INIT ──
+setToday();
+</script>
+</body>
+</html>
