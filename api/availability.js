@@ -52,7 +52,7 @@ export default async function handler(req, res) {
     // Booking has Inventory_Items lookup field → Cabin_Number
     const bookedMap = {};
     bookings.forEach(b => {
-      const cabinNum = b.Inventory_Items?.Cabin_Number || "";
+      const cabinNum = b.Inventory_Items?.display_value || b.Inventory_Items?.Cabin_Number || b.Inventory_Items || "";
       if (!cabinNum) return;
       bookedMap[cabinNum] = {
         client:        b.Client_Name  || "",
