@@ -581,6 +581,17 @@ function setCabin(num,isOc,data){
   const g=document.getElementById('g'+num);if(!g)return;
   g.className='cg '+(isOc?'oc':'av');
   g.onclick=isOc?null:()=>openModal('C-'+String(num).padStart(2,'0'),CABINS[num]);
+  // Directly style the rect so SVG colour always updates
+  const rect=g.querySelector('.cb');
+  if(rect){
+    if(isOc){
+      rect.style.fill='rgba(192,57,43,.12)';
+      rect.style.stroke='rgba(192,57,43,.6)';
+    } else {
+      rect.style.fill='rgba(26,138,60,.07)';
+      rect.style.stroke='rgba(26,138,60,.25)';
+    }
+  }
   const lbEl=document.getElementById('lb'+num);
   const clEl=document.getElementById('cl'+num);
   const dtEl=document.getElementById('dt'+num);
