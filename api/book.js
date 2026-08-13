@@ -60,7 +60,8 @@ export default async function handler(req, res) {
     );
     const conflictData = await conflictRes.json();
     if ((conflictData.data || []).length > 0) {
-      const existing = conflictData.data[0];
+      const ex = conflictData.data[0];
+      const exCabin = ex.Inventory_Items?.display_value || ex.Inventory_Items || cabin_number;
       return res.status(409).json({
         error: `${cabin_number} is already booked from ${existing.Booking_Start} to ${existing.Booking_End} by ${existing.Client_Name}.`,
       });
