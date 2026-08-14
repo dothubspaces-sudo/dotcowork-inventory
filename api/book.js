@@ -43,6 +43,7 @@ module.exports = async function handler(req, res) {
     }
 
     // Step 3 — create Space_Bookings record
+    console.log('Dates being sent:', toCreatorDate(booking_start), toCreatorDate(booking_end))
     const result = await creatorPost('form/Space_Bookings', {
       Inventory_Items: inventoryItemId,
       Client_Name:     client_name,
