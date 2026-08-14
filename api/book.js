@@ -1,4 +1,4 @@
-import { getAccessToken, creatorGet, creatorPost } from './_zoho.js'
+import { getAccessToken, creatorGet, creatorPost } from './zoho.js'
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
