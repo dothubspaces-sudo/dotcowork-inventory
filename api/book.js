@@ -1,6 +1,6 @@
 const { getAccessToken, creatorGet, creatorPost } = require('./zoho.js')
 
-module.exports = async function handler
+module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
@@ -30,7 +30,7 @@ module.exports = async function handler
     }
     const inventoryItemId = item.ID
 
-    // Step 2 — conflict check: any booking overlapping these dates?
+    // Step 2 — conflict check
     const conflictData = await creatorGet(
       `report/All_Spaces?criteria=${encodeURIComponent(`Inventory_Items == ${inventoryItemId} && Booking_Start <= "${booking_end}" && Booking_End >= "${booking_start}"`)}&limit=1`,
       token
