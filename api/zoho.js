@@ -1,12 +1,11 @@
-// _zoho.js — shared Zoho auth + Creator helpers for dotcowork-inventory
-
+// zoho.js — shared Zoho auth + Creator helpers for dotcowork-inventory
 const TOKEN_URL = 'https://accounts.zoho.com/oauth/v2/token'
 const BASE_URL  = 'https://www.zohoapis.com/creator/v2.1/data/dotcowork/workspace-inventory-manager'
 
 let cachedToken = null
 let tokenExpiry  = 0
 
-export async function getAccessToken() {
+async function getAccessToken() {
   if (cachedToken && Date.now() < tokenExpiry) return cachedToken
   const params = new URLSearchParams({
     client_id:     process.env.ZOHO_CLIENT_ID,
@@ -22,14 +21,14 @@ export async function getAccessToken() {
   return cachedToken
 }
 
-export async function creatorGet(path, token) {
+async function creatorGet(path, token) {
   const res = await fetch(`${BASE_URL}/${path}`, {
     headers: { Authorization: `Zoho-oauthtoken ${token}` },
   })
   return res.json()
 }
 
-export async function creatorPost(path, data, token) {
+async function creatorPost(path, data, token) {
   const res = await fetch(`${BASE_URL}/${path}`, {
     method:  'POST',
     headers: {
@@ -42,3 +41,5 @@ export async function creatorPost(path, data, token) {
   console.log('creatorPost result:', JSON.stringify(result))
   return result
 }
+
+module.exports = { getAccessToken, creatorGet, creatorPost }
