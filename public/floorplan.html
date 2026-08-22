@@ -519,7 +519,7 @@ svg#fp{display:block;width:100%;height:auto}
 
       <!-- TOP ROW -->
 
-      <g class="mr"><rect class="cb" x="278" y="8" width="160" height="154" rx="4"/><text class="cn" x="358" y="76" text-anchor="middle" font-size="11">MEETING 1</text><text class="st" x="358" y="93" text-anchor="middle" font-size="9">7 PAX</text></g>
+      <g class="cg av" id="g23" onmouseenter="tip(event,23)" onmouseleave="ht()"><rect class="cb" x="278" y="8" width="160" height="154" rx="4"/><text class="cn" x="286" y="28" font-size="9">C-23</text><text class="st" x="358" y="78" text-anchor="middle" font-size="10">Meeting Room A</text><text class="lb" x="358" y="96" text-anchor="middle" font-size="8" id="lb23">Available</text><text class="cl" x="358" y="114" text-anchor="middle" font-size="7.5" id="cl23"></text><text class="dt" x="358" y="130" text-anchor="middle" font-size="7" id="dt23"></text></g>
 
       <g class="cg av" id="g1" onmouseenter="tip(event,1)" onmouseleave="ht()"><rect class="cb" x="446" y="8" width="126" height="154" rx="4"/><text class="cn" x="454" y="28" font-size="9">C-01</text><text class="st" x="509" y="76" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="509" y="94" text-anchor="middle" font-size="8" id="lb1">Available</text><text class="cl" x="509" y="112" text-anchor="middle" font-size="7.5" id="cl1"></text><text class="dt" x="509" y="128" text-anchor="middle" font-size="7" id="dt1"></text></g>
 
@@ -529,9 +529,9 @@ svg#fp{display:block;width:100%;height:auto}
 
       <g class="cg av" id="g4" onmouseenter="tip(event,4)" onmouseleave="ht()"><rect class="cb" x="828" y="8" width="126" height="154" rx="4"/><text class="cn" x="836" y="28" font-size="9">C-04</text><text class="st" x="891" y="76" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="891" y="94" text-anchor="middle" font-size="8" id="lb4">Available</text><text class="cl" x="891" y="112" text-anchor="middle" font-size="7.5" id="cl4"></text><text class="dt" x="891" y="128" text-anchor="middle" font-size="7" id="dt4"></text></g>
 
-      <g class="mr"><rect class="cb" x="962" y="8" width="90" height="154" rx="4"/><text class="cn" x="1007" y="72" text-anchor="middle" font-size="10">MTG 2</text><text class="st" x="1007" y="89" text-anchor="middle" font-size="8">7 PAX</text></g>
+      <g class="cg av" id="g24" onmouseenter="tip(event,24)" onmouseleave="ht()"><rect class="cb" x="962" y="8" width="90" height="154" rx="4"/><text class="cn" x="970" y="28" font-size="9">C-24</text><text class="st" x="1007" y="78" text-anchor="middle" font-size="9">Meeting</text><text class="st" x="1007" y="92" text-anchor="middle" font-size="9">Room B</text><text class="lb" x="1007" y="110" text-anchor="middle" font-size="8" id="lb24">Available</text><text class="cl" x="1007" y="126" text-anchor="middle" font-size="7" id="cl24"></text><text class="dt" x="1007" y="140" text-anchor="middle" font-size="7" id="dt24"></text></g>
 
-      <g class="cf"><rect class="cb" x="1068" y="8" width="114" height="344" rx="4"/><text class="cn" x="1125" y="166" text-anchor="middle" font-size="10">CONF.</text><text class="cn" x="1125" y="183" text-anchor="middle" font-size="9">FC011</text></g>
+      <g class="cg av" id="g25" onmouseenter="tip(event,25)" onmouseleave="ht()"><rect class="cb" x="1068" y="8" width="114" height="344" rx="4"/><text class="cn" x="1076" y="28" font-size="9">C-25</text><text class="st" x="1125" y="158" text-anchor="middle" font-size="10">Board Room</text><text class="st" x="1125" y="174" text-anchor="middle" font-size="8">15 PAX</text><text class="lb" x="1125" y="194" text-anchor="middle" font-size="8" id="lb25">Available</text><text class="cl" x="1125" y="212" text-anchor="middle" font-size="7.5" id="cl25"></text><text class="dt" x="1125" y="228" text-anchor="middle" font-size="7" id="dt25"></text></g>
 
       <!-- ALLEYS -->
 
@@ -792,6 +792,9 @@ const CABINS={
   20:{seats:6,type:'6-seater',label:'C-15'},
   21:{seats:6,type:'6-seater',label:'C-16'},
   22:{seats:6,type:'6-seater',label:'C-17'},
+  23:{seats:6,type:'meeting room',label:'C-23'},
+  24:{seats:6,type:'meeting room',label:'C-24'},
+  25:{seats:15,type:'board room',label:'C-25'},
 };
 
 const EXT={
