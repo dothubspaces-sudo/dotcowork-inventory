@@ -371,6 +371,20 @@ svg#fp{display:block;width:100%;height:auto}
 .wdays-count span{color:var(--brand)}
 .wdays-holidays{font-size:11px;color:var(--txt3);line-height:1.6}
 .wdays-hol-tag{display:inline-block;background:var(--surface2);border:1px solid var(--border2);border-radius:4px;padding:1px 6px;margin:2px 3px 2px 0;font-size:10px;color:var(--txt2)}
+
+/* SLOT GRID MODAL */
+.slot-modal{max-width:480px}
+.slot-date{font-size:13px;color:var(--txt2);margin-bottom:1rem;display:flex;align-items:center;justify-content:space-between}
+.slot-date-nav{display:flex;gap:6px}
+.slot-day-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:12px;color:var(--txt2);display:flex;align-items:center;justify-content:center}
+.slot-day-btn:hover{background:var(--surface2)}
+.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
+.slot-btn{padding:10px 6px;border-radius:var(--radius-xs);border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:12px;font-weight:500;color:var(--txt);font-family:var(--f);text-align:center;transition:all .12s}
+.slot-btn:hover:not(.booked){border-color:var(--avail);background:var(--avail-bg)}
+.slot-btn.booked{background:var(--occ-bg);border-color:var(--occ-bd);color:var(--occ);cursor:not-allowed}
+.slot-btn.selected{background:var(--brand);border-color:var(--brand);color:#fff}
+.slot-hint{font-size:12px;color:var(--txt3);text-align:center;margin-bottom:1rem;min-height:16px}
+.slot-continue:disabled{opacity:.4;cursor:not-allowed}
 </style>
 
 </head>
@@ -747,6 +761,14 @@ svg#fp{display:block;width:100%;height:auto}
 
       </div>
 
+      <div class="frow2" id="timeFieldsRow" style="display:none">
+
+        <div class="frow" style="margin-bottom:0"><label>Start Time</label><input class="flocked" id="f-start-time" type="text" readonly/></div>
+
+        <div class="frow" style="margin-bottom:0"><label>End Time</label><input class="flocked" id="f-end-time" type="text" readonly/></div>
+
+      </div>
+
       <div class="frow"><label>Purpose</label>
 
         <select id="f-purpose"><option value="">Select purpose</option><option>Training</option><option>Private Cabin</option><option>Event</option><option>Meeting</option><option>Other</option></select>
@@ -758,6 +780,52 @@ svg#fp{display:block;width:100%;height:auto}
       <button class="msubmit" id="msbtn" onclick="submitBooking()">Confirm Booking</button>
 
       <div class="mmsg" id="mmsg"></div>
+
+    </div>
+
+  </div>
+
+</div>
+
+<!-- TIME SLOT MODAL -->
+
+<div class="ovl" id="ovlSlots">
+
+  <div class="modal slot-modal">
+
+    <div class="modal-head">
+
+      <button class="mclose" onclick="closeSlotModal()">✕</button>
+
+      <div class="mtag">Select Time</div>
+
+      <div class="mtitle" id="slotTitle"></div>
+
+      <div class="msubt" id="slotSubt"></div>
+
+    </div>
+
+    <div class="modal-body">
+
+      <div class="slot-date">
+
+        <span id="slotDateLabel"></span>
+
+        <div class="slot-date-nav">
+
+          <button class="slot-day-btn" onclick="shiftSlotDay(-1)">‹</button>
+
+          <button class="slot-day-btn" onclick="shiftSlotDay(1)">›</button>
+
+        </div>
+
+      </div>
+
+      <div class="slot-grid" id="slotGrid"></div>
+
+      <div class="slot-hint" id="slotHint">Select a start time</div>
+
+      <button class="msubmit slot-continue" id="slotContinueBtn" disabled onclick="continueFromSlots()">Continue</button>
 
     </div>
 
@@ -805,7 +873,12 @@ const EXT={
 
 };
 
+const HOURLY_LABELS=new Set(['C-23','C-24','C-25','Training Room','Auditorium']);
+const SLOT_START_HOUR=9, SLOT_END_HOUR=21; // 9 AM – 9 PM
+function isHourly(label){return HOURLY_LABELS.has(label);}
+
 let live={}, sel=null;
+let slotDay=null, slotSelStart=null, slotSelEnd=null, slotCtx=null;
 
 // ── DATE RANGE STATE ──
 
@@ -1076,9 +1149,13 @@ function setCabin(num,isOc,data){
 
   const g=document.getElementById('g'+num);if(!g)return;
 
+  const label=CABINS[num].label;
+
+  const hourly=isHourly(label);
+
   g.className='cg '+(isOc?'oc':'av');
 
-  g.onclick=isOc?null:()=>openModal(CABINS[num].label,CABINS[num]);
+  g.onclick=isOc?null:(hourly?()=>openSlotModal(label,CABINS[num],label):()=>openModal(label,CABINS[num]));
 
   // Directly style the rect so SVG colour always updates
 
@@ -1110,9 +1187,21 @@ function setCabin(num,isOc,data){
 
   if(lbEl)lbEl.textContent=isOc?'Booked':(num<=8?'Avail':'Available');
 
-  if(clEl)clEl.textContent=isOc&&data?.client?data.client:'';
+  if(hourly){
 
-  if(dtEl)dtEl.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+    const daySlots=(data&&data.slots?data.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+
+    if(clEl)clEl.textContent=daySlots.length?daySlots.length+' slot(s) booked today':'';
+
+    if(dtEl)dtEl.textContent='';
+
+  }else{
+
+    if(clEl)clEl.textContent=isOc&&data?.client?data.client:'';
+
+    if(dtEl)dtEl.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+
+  }
 
 }
 
@@ -1130,15 +1219,19 @@ function setExt(key,isOc,data){
 
   card.className='extcard'+(isOc?' occ':'');
 
-  card.onclick=isOc?null:()=>openModal(EXT[key].label,{seats:EXT[key].cap,type:EXT[key].label});
+  const apiKey=EXT[key].key;
+
+  card.onclick=isOc?null:()=>openSlotModal(EXT[key].label,{seats:EXT[key].cap,type:EXT[key].label},apiKey);
 
   badge.className='extbadge '+(isOc?'oc':'av');
 
   badge.textContent=isOc?'● Booked':'● Available';
 
+  const daySlots=(data&&data.slots?data.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+
   client.textContent=isOc&&data?.client?data.client:'';
 
-  dates.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+  dates.textContent=daySlots.length?daySlots.length+' slot(s) booked today':'';
 
 }
 
@@ -1162,15 +1255,31 @@ function tip(e,num){
 
   s.textContent=isOc?'● Booked':'● Available';
 
-  document.getElementById('ttc').textContent=isOc&&ld?.client?ld.client:'';
-
-  document.getElementById('tte').textContent=isOc&&ld?.booking_end?fmtFull(ld.booking_start)+' → '+fmtFull(ld.booking_end):'';
-
   const paxEl=document.getElementById('ttpax');
 
-  if(paxEl)paxEl.textContent=isOc&&ld?.purpose?(ld.purpose+(ld.pax?' · '+ld.pax+' PAX':'')):'';
+  if(isHourly(cn)){
 
-  document.getElementById('tth').textContent=isOc?'':'Click to book this space';
+    const daySlots=(ld&&ld.slots?ld.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+
+    document.getElementById('ttc').textContent='';
+
+    document.getElementById('tte').textContent=daySlots.length?daySlots.length+' slot(s) booked today':'No bookings today';
+
+    if(paxEl)paxEl.textContent='';
+
+    document.getElementById('tth').textContent=isOc?'':'Click to view available times';
+
+  }else{
+
+    document.getElementById('ttc').textContent=isOc&&ld?.client?ld.client:'';
+
+    document.getElementById('tte').textContent=isOc&&ld?.booking_end?fmtFull(ld.booking_start)+' → '+fmtFull(ld.booking_end):'';
+
+    if(paxEl)paxEl.textContent=isOc&&ld?.purpose?(ld.purpose+(ld.pax?' · '+ld.pax+' PAX':'')):'';
+
+    document.getElementById('tth').textContent=isOc?'':'Click to book this space';
+
+  }
 
   ttEl.style.display='block';mv(e);
 
@@ -1184,9 +1293,9 @@ document.addEventListener('mousemove',e=>{if(ttEl.style.display==='block')mv(e);
 
 // ── MODAL ──
 
-function openModal(title,data){
+function openModal(title,data,timeCtx){
 
-  sel={cabinNum:title,type:data.type,seats:data.seats};
+  sel={cabinNum:title,type:data.type,seats:data.seats,timeCtx:timeCtx||null};
 
   document.getElementById('mtitle').textContent=title;
 
@@ -1196,9 +1305,37 @@ function openModal(title,data){
 
   document.getElementById('f-client').value='';
 
-  document.getElementById('f-start').value=rangeStart||tod();
+  const timeRow=document.getElementById('timeFieldsRow');
 
-  document.getElementById('f-end').value=rangeEnd||'';
+  const startInput=document.getElementById('f-start');
+
+  const endInput=document.getElementById('f-end');
+
+  if(timeCtx){
+
+    startInput.value=timeCtx.date;endInput.value=timeCtx.date;
+
+    startInput.readOnly=true;endInput.readOnly=true;
+
+    startInput.classList.add('flocked');endInput.classList.add('flocked');
+
+    document.getElementById('f-start-time').value=hhmmLabel(timeCtx.startTime);
+
+    document.getElementById('f-end-time').value=hhmmLabel(timeCtx.endTime);
+
+    timeRow.style.display='';
+
+  }else{
+
+    startInput.readOnly=false;endInput.readOnly=false;
+
+    startInput.classList.remove('flocked');endInput.classList.remove('flocked');
+
+    startInput.value=rangeStart||tod();endInput.value=rangeEnd||'';
+
+    timeRow.style.display='none';
+
+  }
 
   document.getElementById('f-purpose').value='';
 
@@ -1244,11 +1381,15 @@ async function submitBooking(){
 
   btn.disabled=true;btn.textContent='Saving…';msg.textContent='';
 
+  const body={cabin_number:sel.cabinNum,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0};
+
+  if(sel.timeCtx){body.start_time=sel.timeCtx.startTime;body.end_time=sel.timeCtx.endTime;}
+
   try{
 
     const r=await fetch('/api/book',{method:'POST',headers:{'Content-Type':'application/json'},
 
-      body:JSON.stringify({cabin_number:sel.cabinNum,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0})});
+      body:JSON.stringify(body)});
 
     const d=await r.json();
 
@@ -1268,6 +1409,113 @@ async function submitBooking(){
 
   }
 
+}
+
+// ── TIME SLOT MODAL ──
+
+function hourLabel(h){const ap=h>=12?'PM':'AM';let h12=h%12;if(h12===0)h12=12;return`${h12} ${ap}`;}
+function hhmm(h){return String(h).padStart(2,'0')+':00';}
+function hhmmLabel(s){return hourLabel(parseInt(s.split(':')[0],10));}
+
+function openSlotModal(title,data,apiKey){
+  slotCtx={title,data,apiKey,dayData:undefined};
+  slotDay=rangeStart||tod();
+  slotSelStart=null;slotSelEnd=null;
+  document.getElementById('slotTitle').textContent=title;
+  document.getElementById('slotSubt').textContent=(data.type||title)+' · Tharamani';
+  renderSlotGrid();
+  document.getElementById('ovlSlots').classList.add('open');ht();
+}
+
+function closeSlotModal(){document.getElementById('ovlSlots').classList.remove('open');}
+document.getElementById('ovlSlots').addEventListener('click',e=>{if(e.target.id==='ovlSlots')closeSlotModal();});
+
+async function shiftSlotDay(dir){
+  const d=parseDate(slotDay);d.setDate(d.getDate()+dir);
+  const ds=dateStr(d);
+  if(ds<tod())return;
+  slotDay=ds;slotSelStart=null;slotSelEnd=null;
+  await loadSlotDay();
+  renderSlotGrid();
+}
+
+async function loadSlotDay(){
+  try{
+    const r=await fetch(`/api/availability?date=${slotDay}&end_date=${slotDay}`);
+    const d=await r.json();
+    if(d.status==='success'){
+      slotCtx.dayData=(d.spaces||[]).find(s=>s.cabin_number===slotCtx.apiKey)||null;
+    }
+  }catch(e){console.error(e);}
+}
+
+function bookedSlotsForDay(){
+  const rec=slotCtx.dayData!==undefined?slotCtx.dayData:live[slotCtx.apiKey];
+  if(!rec||!rec.slots)return[];
+  return rec.slots.filter(s=>s.date===slotDay);
+}
+
+function isHourBooked(h,daySlots){
+  return daySlots.some(s=>{
+    const sh=parseInt(s.start.split(':')[0],10);
+    const eh=parseInt(s.end.split(':')[0],10);
+    return h<eh&&h+1>sh;
+  });
+}
+
+function renderSlotGrid(){
+  const grid=document.getElementById('slotGrid');
+  document.getElementById('slotDateLabel').textContent=fmtFull(slotDay);
+  const daySlots=bookedSlotsForDay();
+  let h='';
+  for(let hr=SLOT_START_HOUR;hr<SLOT_END_HOUR;hr++){
+    const booked=isHourBooked(hr,daySlots);
+    const inSel=!booked&&slotSelStart!=null&&hr>=slotSelStart&&(slotSelEnd==null?hr===slotSelStart:hr<slotSelEnd);
+    let cls='slot-btn';
+    if(booked)cls+=' booked';
+    else if(inSel)cls+=' selected';
+    const info=booked?daySlots.find(s=>{const sh=parseInt(s.start.split(':')[0],10),eh=parseInt(s.end.split(':')[0],10);return hr<eh&&hr+1>sh;}):null;
+    const title=booked?(info?.full_day?'Booked (full day)':(info?.client||'Booked')):'';
+    h+=`<button type="button" class="${cls}" ${booked?'disabled':''} title="${title.replace(/"/g,'&quot;')}" onclick="pickSlot(${hr})">${hourLabel(hr)}–${hourLabel(hr+1)}</button>`;
+  }
+  grid.innerHTML=h;
+  updateSlotHint();
+}
+
+function pickSlot(hr){
+  const daySlots=bookedSlotsForDay();
+  if(isHourBooked(hr,daySlots))return;
+  if(slotSelStart==null||slotSelEnd!=null||hr<slotSelStart){
+    slotSelStart=hr;slotSelEnd=null;
+  }else if(hr===slotSelStart){
+    slotSelEnd=hr+1;
+  }else{
+    let ok=true;
+    for(let x=slotSelStart;x<=hr;x++){if(isHourBooked(x,daySlots)){ok=false;break;}}
+    if(ok){slotSelEnd=hr+1;}else{slotSelStart=hr;slotSelEnd=null;}
+  }
+  renderSlotGrid();
+}
+
+function updateSlotHint(){
+  const hint=document.getElementById('slotHint');
+  const btn=document.getElementById('slotContinueBtn');
+  if(slotSelStart!=null&&slotSelEnd!=null){
+    hint.textContent=`${hourLabel(slotSelStart)} – ${hourLabel(slotSelEnd)} selected`;
+    btn.disabled=false;
+  }else if(slotSelStart!=null){
+    hint.textContent='Now pick the end time';
+    btn.disabled=true;
+  }else{
+    hint.textContent='Select a start time';
+    btn.disabled=true;
+  }
+}
+
+function continueFromSlots(){
+  if(slotSelStart==null||slotSelEnd==null)return;
+  closeSlotModal();
+  openModal(slotCtx.title,slotCtx.data,{date:slotDay,startTime:hhmm(slotSelStart),endTime:hhmm(slotSelEnd)});
 }
 
 // ── WORKING DAYS ──
