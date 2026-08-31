@@ -378,8 +378,8 @@ svg#fp{display:block;width:100%;height:auto}
 .slot-date-nav{display:flex;gap:6px}
 .slot-day-btn{width:26px;height:26px;border-radius:50%;border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:12px;color:var(--txt2);display:flex;align-items:center;justify-content:center}
 .slot-day-btn:hover{background:var(--surface2)}
-.slot-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:1rem}
-.slot-btn{padding:10px 6px;border-radius:var(--radius-xs);border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:12px;font-weight:500;color:var(--txt);font-family:var(--f);text-align:center;transition:all .12s}
+.slot-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:1rem;max-height:260px;overflow-y:auto;padding-right:2px}
+.slot-btn{padding:9px 4px;border-radius:var(--radius-xs);border:1px solid var(--border2);background:var(--surface);cursor:pointer;font-size:11px;font-weight:500;color:var(--txt);font-family:var(--f);text-align:center;transition:all .12s}
 .slot-btn:hover:not(.booked){border-color:var(--avail);background:var(--avail-bg)}
 .slot-btn.booked{background:var(--occ-bg);border-color:var(--occ-bd);color:var(--occ);cursor:not-allowed}
 .slot-btn.selected{background:var(--brand);border-color:var(--brand);color:#fff}
@@ -874,7 +874,7 @@ const EXT={
 };
 
 const HOURLY_LABELS=new Set(['C-23','C-24','C-25','Training Room','Auditorium']);
-const SLOT_START_HOUR=9, SLOT_END_HOUR=21; // 9 AM – 9 PM
+const SLOT_START_MIN=9*60, SLOT_END_MIN=21*60, SLOT_STEP=30; // 9 AM – 9 PM, 30-min slots
 function isHourly(label){return HOURLY_LABELS.has(label);}
 
 let live={}, sel=null;
@@ -1190,10 +1190,11 @@ function setCabin(num,isOc,data){
   if(hourly){
 
     const daySlots=(data&&data.slots?data.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+    const first=daySlots[0];
 
-    if(clEl)clEl.textContent=daySlots.length?daySlots.length+' slot(s) booked today':'';
+    if(clEl)clEl.textContent=first?slotWho(first):'';
 
-    if(dtEl)dtEl.textContent='';
+    if(dtEl)dtEl.textContent=first?slotWhen(first)+(daySlots.length>1?` +${daySlots.length-1} more`:''):'';
 
   }else{
 
@@ -1228,14 +1229,20 @@ function setExt(key,isOc,data){
   badge.textContent=isOc?'● Booked':'● Available';
 
   const daySlots=(data&&data.slots?data.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+  const first=daySlots[0];
 
-  client.textContent=isOc&&data?.client?data.client:'';
+  client.textContent=first?slotWho(first):'';
 
-  dates.textContent=daySlots.length?daySlots.length+' slot(s) booked today':'';
+  dates.textContent=first?slotWhen(first)+(daySlots.length>1?` +${daySlots.length-1} more today`:''):'';
 
 }
 
 // ── TOOLTIP ──
+
+function escHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+function slotWho(sl){return sl.full_day?'Booked all day':(sl.client||'Booked');}
+function slotWhen(sl){return sl.full_day?'':slotLabel(parseHM(sl.start))+' – '+slotLabel(parseHM(sl.end));}
+function slotLine(sl){const w=slotWhen(sl);return w?`${w} · ${slotWho(sl)}`:slotWho(sl);}
 
 const ttEl=document.getElementById('tt');
 
@@ -1260,12 +1267,13 @@ function tip(e,num){
   if(isHourly(cn)){
 
     const daySlots=(ld&&ld.slots?ld.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
+    const shown=daySlots.slice(0,4);
 
-    document.getElementById('ttc').textContent='';
+    document.getElementById('ttc').innerHTML=shown.map(sl=>`<div>${escHtml(slotLine(sl))}</div>`).join('');
 
-    document.getElementById('tte').textContent=daySlots.length?daySlots.length+' slot(s) booked today':'No bookings today';
+    document.getElementById('tte').textContent=daySlots.length?(daySlots.length>4?`+${daySlots.length-4} more today`:''):'No bookings today';
 
-    if(paxEl)paxEl.textContent='';
+    if(paxEl)paxEl.textContent=shown.length===1&&shown[0].purpose?shown[0].purpose+(shown[0].pax?' · '+shown[0].pax+' PAX':''):'';
 
     document.getElementById('tth').textContent=isOc?'':'Click to view available times';
 
@@ -1413,9 +1421,10 @@ async function submitBooking(){
 
 // ── TIME SLOT MODAL ──
 
-function hourLabel(h){const ap=h>=12?'PM':'AM';let h12=h%12;if(h12===0)h12=12;return`${h12} ${ap}`;}
-function hhmm(h){return String(h).padStart(2,'0')+':00';}
-function hhmmLabel(s){return hourLabel(parseInt(s.split(':')[0],10));}
+function slotLabel(mins){const ap=mins>=720?'PM':'AM';let h12=Math.floor(mins/60)%12;if(h12===0)h12=12;const m=mins%60;return m===0?`${h12} ${ap}`:`${h12}:${String(m).padStart(2,'0')} ${ap}`;}
+function hhmm(mins){return String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');}
+function parseHM(s){const[h,m]=s.split(':').map(Number);return h*60+(m||0);}
+function hhmmLabel(s){return slotLabel(parseHM(s));}
 
 function openSlotModal(title,data,apiKey){
   slotCtx={title,data,apiKey,dayData:undefined};
@@ -1455,11 +1464,11 @@ function bookedSlotsForDay(){
   return rec.slots.filter(s=>s.date===slotDay);
 }
 
-function isHourBooked(h,daySlots){
+function isSlotBooked(mins,daySlots){
   return daySlots.some(s=>{
-    const sh=parseInt(s.start.split(':')[0],10);
-    const eh=parseInt(s.end.split(':')[0],10);
-    return h<eh&&h+1>sh;
+    const sMin=parseHM(s.start);
+    const eMin=parseHM(s.end);
+    return mins<eMin&&mins+SLOT_STEP>sMin;
   });
 }
 
@@ -1468,31 +1477,31 @@ function renderSlotGrid(){
   document.getElementById('slotDateLabel').textContent=fmtFull(slotDay);
   const daySlots=bookedSlotsForDay();
   let h='';
-  for(let hr=SLOT_START_HOUR;hr<SLOT_END_HOUR;hr++){
-    const booked=isHourBooked(hr,daySlots);
-    const inSel=!booked&&slotSelStart!=null&&hr>=slotSelStart&&(slotSelEnd==null?hr===slotSelStart:hr<slotSelEnd);
+  for(let m=SLOT_START_MIN;m<SLOT_END_MIN;m+=SLOT_STEP){
+    const booked=isSlotBooked(m,daySlots);
+    const inSel=!booked&&slotSelStart!=null&&m>=slotSelStart&&(slotSelEnd==null?m===slotSelStart:m<slotSelEnd);
     let cls='slot-btn';
     if(booked)cls+=' booked';
     else if(inSel)cls+=' selected';
-    const info=booked?daySlots.find(s=>{const sh=parseInt(s.start.split(':')[0],10),eh=parseInt(s.end.split(':')[0],10);return hr<eh&&hr+1>sh;}):null;
+    const info=booked?daySlots.find(s=>{const sMin=parseHM(s.start),eMin=parseHM(s.end);return m<eMin&&m+SLOT_STEP>sMin;}):null;
     const title=booked?(info?.full_day?'Booked (full day)':(info?.client||'Booked')):'';
-    h+=`<button type="button" class="${cls}" ${booked?'disabled':''} title="${title.replace(/"/g,'&quot;')}" onclick="pickSlot(${hr})">${hourLabel(hr)}–${hourLabel(hr+1)}</button>`;
+    h+=`<button type="button" class="${cls}" ${booked?'disabled':''} title="${title.replace(/"/g,'&quot;')}" onclick="pickSlot(${m})">${slotLabel(m)}–${slotLabel(m+SLOT_STEP)}</button>`;
   }
   grid.innerHTML=h;
   updateSlotHint();
 }
 
-function pickSlot(hr){
+function pickSlot(mins){
   const daySlots=bookedSlotsForDay();
-  if(isHourBooked(hr,daySlots))return;
-  if(slotSelStart==null||slotSelEnd!=null||hr<slotSelStart){
-    slotSelStart=hr;slotSelEnd=null;
-  }else if(hr===slotSelStart){
-    slotSelEnd=hr+1;
+  if(isSlotBooked(mins,daySlots))return;
+  if(slotSelStart==null||slotSelEnd!=null||mins<slotSelStart){
+    slotSelStart=mins;slotSelEnd=null;
+  }else if(mins===slotSelStart){
+    slotSelEnd=mins+SLOT_STEP;
   }else{
     let ok=true;
-    for(let x=slotSelStart;x<=hr;x++){if(isHourBooked(x,daySlots)){ok=false;break;}}
-    if(ok){slotSelEnd=hr+1;}else{slotSelStart=hr;slotSelEnd=null;}
+    for(let x=slotSelStart;x<=mins;x+=SLOT_STEP){if(isSlotBooked(x,daySlots)){ok=false;break;}}
+    if(ok){slotSelEnd=mins+SLOT_STEP;}else{slotSelStart=mins;slotSelEnd=null;}
   }
   renderSlotGrid();
 }
@@ -1501,7 +1510,7 @@ function updateSlotHint(){
   const hint=document.getElementById('slotHint');
   const btn=document.getElementById('slotContinueBtn');
   if(slotSelStart!=null&&slotSelEnd!=null){
-    hint.textContent=`${hourLabel(slotSelStart)} – ${hourLabel(slotSelEnd)} selected`;
+    hint.textContent=`${slotLabel(slotSelStart)} – ${slotLabel(slotSelEnd)} selected`;
     btn.disabled=false;
   }else if(slotSelStart!=null){
     hint.textContent='Now pick the end time';
