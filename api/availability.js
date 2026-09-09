@@ -60,6 +60,7 @@ export default async function handler(req, res) {
       const cabinNum = b.Inventory_Items?.display_value || b.Inventory_Items?.Cabin_Number || b.Inventory_Items || "";
       if (!cabinNum) return;
       bookedMap[cabinNum] = {
+        id:            b.ID || "",
         client:        b.Client_Name  || "",
         purpose:       b.Purpose      || "",
         pax:           b.Total_Pax    || 0,
@@ -93,6 +94,7 @@ export default async function handler(req, res) {
           status: fullyBookedEveryDay ? "Booked" : "Available",
           slots,
           ...(booking ? {
+            id:            booking.id,
             client:        booking.client,
             purpose:       booking.purpose,
             pax:           booking.pax,
@@ -106,6 +108,7 @@ export default async function handler(req, res) {
         ...base,
         status: booking ? "Booked" : "Available",
         ...(booking ? {
+          id:            booking.id,
           client:        booking.client,
           purpose:       booking.purpose,
           pax:           booking.pax,
@@ -115,11 +118,27 @@ export default async function handler(req, res) {
       };
     });
 
+    // Flat, undeduplicated list of every booking overlapping the range — unlike `spaces`
+    // (one status snapshot per cabin), this keeps every booking so a cabin with multiple
+    // bookings in the range (e.g. across a whole month) isn't collapsed to just the last one.
+    const allBookings = bookings.map(b => ({
+      id:            b.ID || "",
+      cabin_number:  b.Inventory_Items?.display_value || b.Inventory_Items?.Cabin_Number || b.Inventory_Items || "",
+      client:        b.Client_Name  || "",
+      purpose:       b.Purpose      || "",
+      pax:           b.Total_Pax    || 0,
+      booking_start: b.Booking_Start || "",
+      booking_end:   b.Booking_End   || "",
+      start_time:    b.Start_Time    || "",
+      end_time:      b.End_Time      || "",
+    })).filter(b => b.cabin_number && b.id);
+
     return res.status(200).json({
       status:   "success",
       date:     startDate,
       end_date: endDate,
       spaces,
+      bookings: allBookings,
     });
 
   } catch (err) {
@@ -184,7 +203,7 @@ function buildHourlySlots(bookingsForCabin, startDate, endDate) {
     const startMin = hasTime ? parseTimeToMinutes(b.Start_Time) : BUSINESS_START_MIN;
     const endMin   = hasTime ? parseTimeToMinutes(b.End_Time)   : BUSINESS_END_MIN;
     if (startMin == null || endMin == null) return;
-    const info = { client: b.Client_Name || '', purpose: b.Purpose || '', pax: b.Total_Pax || 0, full_day: !hasTime };
+    const info = { id: b.ID || '', client: b.Client_Name || '', purpose: b.Purpose || '', pax: b.Total_Pax || 0, full_day: !hasTime };
 
     days.forEach(d => {
       if (!bStart || !bEnd || d < bStart || d > bEnd) return;

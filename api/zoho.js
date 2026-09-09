@@ -42,4 +42,28 @@ async function creatorPost(path, data, token) {
   return result
 }
 
-module.exports = { getAccessToken, creatorGet, creatorPost }
+async function creatorPatch(path, data, token) {
+  const res = await fetch(`${BASE_URL}/${path}`, {
+    method:  'PATCH',
+    headers: {
+      Authorization:  `Zoho-oauthtoken ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ data }),
+  })
+  const result = await res.json()
+  console.log('creatorPatch result:', JSON.stringify(result))
+  return result
+}
+
+async function creatorDelete(path, token) {
+  const res = await fetch(`${BASE_URL}/${path}`, {
+    method:  'DELETE',
+    headers: { Authorization: `Zoho-oauthtoken ${token}` },
+  })
+  const result = await res.json()
+  console.log('creatorDelete result:', JSON.stringify(result))
+  return result
+}
+
+module.exports = { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete }

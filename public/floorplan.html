@@ -174,6 +174,52 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--txt);min-height:
 
 .spill-dot{width:6px;height:6px;border-radius:50%;flex-shrink:0}
 
+/* TABS */
+
+.tabbar{display:flex;gap:2px;background:var(--surface2);border-radius:50px;padding:3px}
+
+.tabbtn{padding:6px 14px;border-radius:50px;border:none;background:transparent;font-size:12.5px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:var(--f);transition:all .15s;white-space:nowrap}
+
+.tabbtn:hover{color:var(--txt)}
+
+.tabbtn.active{background:var(--surface);color:var(--txt);box-shadow:var(--shadow-sm)}
+
+/* BOOKINGS TABLE */
+
+.bk-toolbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1rem;flex-wrap:wrap;gap:1rem}
+
+.bk-month-nav{display:flex;align-items:center;gap:10px}
+
+.bk-month-label{font-size:15px;font-weight:600;color:var(--txt);min-width:150px}
+
+.bk-count{font-size:13px;color:var(--txt2);font-weight:500;margin-left:6px;padding-left:12px;border-left:1px solid var(--border2)}
+
+.bk-table{width:100%;border-collapse:collapse;font-size:13px}
+
+.bk-table th{text-align:left;font-size:11px;font-weight:600;letter-spacing:.4px;text-transform:uppercase;color:var(--txt3);padding:10px 12px;border-bottom:1px solid var(--border);white-space:nowrap}
+
+.bk-table td{padding:12px;border-bottom:1px solid var(--border);vertical-align:top}
+
+.bk-table tr:last-child td{border-bottom:none}
+
+.bk-empty{padding:2.5rem 1rem;text-align:center;color:var(--txt3);font-size:13px}
+
+.bk-actions{display:flex;gap:6px;white-space:nowrap}
+
+.bk-btn{padding:5px 10px;border-radius:6px;border:1px solid var(--border2);background:var(--surface);font-size:12px;font-weight:500;cursor:pointer;font-family:var(--f);color:var(--txt2);transition:all .15s}
+
+.bk-btn:hover{border-color:rgba(0,0,0,.2);color:var(--txt)}
+
+.bk-btn-danger{color:var(--occ);border-color:var(--occ-bd)}
+
+.bk-btn-danger:hover{background:var(--occ-bg);border-color:var(--occ)}
+
+/* CANCEL BOOKING (in modal) */
+
+.mcancel{width:100%;padding:12px;border-radius:var(--radius-xs);border:1px solid var(--occ-bd);background:var(--occ-bg);color:var(--occ);font-size:13px;font-weight:600;font-family:var(--f);cursor:pointer;margin-top:.6rem;transition:all .15s}
+
+.mcancel:hover{background:rgba(192,57,43,.14)}
+
 .spill-dot-av{background:var(--avail)}
 
 .spill-dot-oc{background:var(--occ)}
@@ -407,6 +453,16 @@ svg#fp{display:block;width:100%;height:auto}
 
     </div>
 
+    <div class="hdiv"></div>
+
+    <div class="tabbar">
+
+      <button class="tabbtn active" id="tabFloorPlan" onclick="showTab('floorplan')">Floor Plan</button>
+
+      <button class="tabbtn" id="tabBookings" onclick="showTab('bookings')">Bookings</button>
+
+    </div>
+
   </div>
 
   <div class="hright">
@@ -484,6 +540,8 @@ svg#fp{display:block;width:100%;height:auto}
     </div>
 
   </div>
+
+  <div id="floorPlanView">
 
   <div class="lstrip" id="ls"><div class="linner" id="li"></div></div>
 
@@ -707,6 +765,44 @@ svg#fp{display:block;width:100%;height:auto}
 
   </div>
 
+  </div>
+
+  <!-- BOOKINGS TAB -->
+
+  <div id="bookingsView" style="display:none">
+
+    <div class="bk-toolbar">
+
+      <div class="bk-month-nav">
+
+        <button class="slot-day-btn" onclick="shiftBkMonth(-1)">‹</button>
+
+        <span class="bk-month-label" id="bkMonthLabel"></span>
+
+        <button class="slot-day-btn" onclick="shiftBkMonth(1)">›</button>
+
+        <span class="bk-count" id="bkCount"></span>
+
+      </div>
+
+      <button class="today-btn" onclick="exportBookingsCsv()">⬇ Export CSV</button>
+
+    </div>
+
+    <div class="fcard" style="overflow-x:auto">
+
+      <table class="bk-table">
+
+        <thead><tr><th>Space</th><th>Type</th><th>Client</th><th>Purpose</th><th>PAX</th><th>When</th><th></th></tr></thead>
+
+        <tbody id="bkTbody"></tbody>
+
+      </table>
+
+    </div>
+
+  </div>
+
 </div>
 
 <!-- TOOLTIP -->
@@ -739,7 +835,7 @@ svg#fp{display:block;width:100%;height:auto}
 
       <button class="mclose" onclick="closeModal()">✕</button>
 
-      <div class="mtag">New Booking</div>
+      <div class="mtag" id="mtag">New Booking</div>
 
       <div class="mtitle" id="mtitle"></div>
 
@@ -778,6 +874,8 @@ svg#fp{display:block;width:100%;height:auto}
       <div class="frow"><label>Total PAX</label><input id="f-pax" type="number" min="1" placeholder="Number of people"/></div>
 
       <button class="msubmit" id="msbtn" onclick="submitBooking()">Confirm Booking</button>
+
+      <button class="mcancel" id="mcancelbtn" style="display:none" onclick="confirmThenRun(this,()=>doCancel(sel.editingId,this,document.getElementById('mmsg')))">Cancel booking</button>
 
       <div class="mmsg" id="mmsg"></div>
 
@@ -1237,6 +1335,170 @@ function setExt(key,isOc,data){
 
 }
 
+// ── BOOKINGS TAB ──
+
+function showTab(tab){
+  const fp=document.getElementById('floorPlanView');
+  const bk=document.getElementById('bookingsView');
+  const t1=document.getElementById('tabFloorPlan');
+  const t2=document.getElementById('tabBookings');
+  if(tab==='bookings'){
+    fp.style.display='none';bk.style.display='';
+    t1.classList.remove('active');t2.classList.add('active');
+    loadBookingsMonth();
+  }else{
+    fp.style.display='';bk.style.display='none';
+    t1.classList.add('active');t2.classList.remove('active');
+  }
+}
+
+let bkMonthAnchor=new Date();bkMonthAnchor.setDate(1);
+let bkRawBookings=[];
+let bookingsById={};
+
+function monthRange(anchor){
+  const y=anchor.getFullYear(),m=anchor.getMonth();
+  return {start:dateStr(new Date(y,m,1)),end:dateStr(new Date(y,m+1,0))};
+}
+
+function monthLabel(anchor){
+  return anchor.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+}
+
+async function loadBookingsMonth(){
+  const labelEl=document.getElementById('bkMonthLabel');
+  if(labelEl)labelEl.textContent=monthLabel(bkMonthAnchor);
+  const {start,end}=monthRange(bkMonthAnchor);
+  try{
+    const r=await fetch(`/api/availability?date=${start}&end_date=${end}`);
+    const d=await r.json();
+    bkRawBookings=d.status==='success'?(d.bookings||[]):[];
+  }catch(e){
+    console.error(e);
+    bkRawBookings=[];
+  }
+  renderBookingsTable();
+}
+
+function shiftBkMonth(dir){
+  bkMonthAnchor=new Date(bkMonthAnchor.getFullYear(),bkMonthAnchor.getMonth()+dir,1);
+  loadBookingsMonth();
+}
+
+function bookingRowFromRaw(b){
+  const hourly=isHourly(b.cabin_number);
+  const cabinEntry=Object.values(CABINS).find(c=>c.label===b.cabin_number);
+  const type=cabinEntry?cabinEntry.type:b.cabin_number;
+  const hasTime=!!(b.start_time&&b.end_time);
+  let when;
+  if(hourly&&hasTime){
+    when=`${fmtFull(b.booking_start)} · ${slotLabel(parseHM(b.start_time))}–${slotLabel(parseHM(b.end_time))}`;
+  }else if(hourly){
+    when=`${fmtFull(b.booking_start)} · All day`;
+  }else{
+    when=b.booking_start===b.booking_end?fmtFull(b.booking_start):`${fmtFull(b.booking_start)} → ${fmtFull(b.booking_end)}`;
+  }
+  return {
+    id:b.id,space:b.cabin_number,type,client:b.client||'—',purpose:b.purpose||'—',pax:b.pax||0,
+    when,hourly,date:b.booking_start,start:b.start_time,end:b.end_time,
+    booking_start:b.booking_start,booking_end:b.booking_end,
+    sortKey:b.booking_start+'_'+(b.start_time||'')
+  };
+}
+
+function bookingRows(){
+  return bkRawBookings.map(bookingRowFromRaw).sort((a,b)=>a.sortKey<b.sortKey?-1:a.sortKey>b.sortKey?1:0);
+}
+
+function renderBookingsTable(){
+  const tbody=document.getElementById('bkTbody');
+  if(!tbody)return;
+  const countEl=document.getElementById('bkCount');
+  const rows=bookingRows();
+  bookingsById={};
+  rows.forEach(r=>{bookingsById[r.id]=r;});
+  if(countEl)countEl.textContent=rows.length?`${rows.length} booking${rows.length===1?'':'s'}`:'No bookings';
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="7" class="bk-empty">No bookings this month</td></tr>`;
+    return;
+  }
+  tbody.innerHTML=rows.map(r=>`
+    <tr>
+      <td>${escHtml(r.space)}</td>
+      <td>${escHtml(r.type)}</td>
+      <td>${escHtml(r.client)}</td>
+      <td>${escHtml(r.purpose)}</td>
+      <td>${r.pax||''}</td>
+      <td>${escHtml(r.when)}</td>
+      <td><div class="bk-actions">
+        <button class="bk-btn" onclick="openEditFromRow('${r.id}')">Edit</button>
+        <button class="bk-btn bk-btn-danger" onclick="confirmThenRun(this,()=>doCancel('${r.id}',this))">Cancel</button>
+      </div></td>
+    </tr>`).join('');
+}
+
+function openEditFromRow(id){
+  const row=bookingsById[id];
+  if(!row)return;
+  const cabinEntry=Object.values(CABINS).find(c=>c.label===row.space);
+  const data=cabinEntry||{seats:row.pax,type:row.type};
+  const timeCtx=row.hourly?{date:row.date,startTime:row.start,endTime:row.end}:null;
+  openModal(row.space,data,timeCtx,row);
+}
+
+function confirmThenRun(btn,runFn){
+  if(btn.dataset.confirming==='1'){
+    clearTimeout(btn._cancelTimer);
+    btn.dataset.confirming='0';
+    runFn();
+    return;
+  }
+  btn.dataset.confirming='1';
+  btn._origText=btn.textContent;
+  btn.textContent='Click again to confirm';
+  btn._cancelTimer=setTimeout(()=>{
+    btn.dataset.confirming='0';
+    btn.textContent=btn._origText;
+  },4000);
+}
+
+async function doCancel(id,btn,msgEl){
+  try{
+    const r=await fetch('/api/book?id='+encodeURIComponent(id),{method:'DELETE'});
+    const d=await r.json();
+    if(d.status!=='success')throw new Error(d.error||'Failed to cancel booking');
+    if(sel&&sel.editingId===id)closeModal();
+    await load();
+    if(document.getElementById('bookingsView').style.display!=='none')await loadBookingsMonth();
+  }catch(e){
+    if(msgEl){msgEl.className='mmsg err';msgEl.textContent=e.message||'Failed to cancel booking';}
+    if(btn){
+      const orig=btn._origText||'Cancel';
+      btn.textContent='Failed — retry';
+      setTimeout(()=>{btn.textContent=orig;},2500);
+    }
+  }
+}
+
+function csvEscape(v){
+  const s=String(v==null?'':v);
+  return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;
+}
+
+function exportBookingsCsv(){
+  const rows=bookingRows();
+  const header=['Space','Type','Client','Purpose','PAX','When'];
+  const lines=[header.join(',')];
+  rows.forEach(r=>{lines.push([r.space,r.type,r.client,r.purpose,r.pax,r.when].map(csvEscape).join(','));});
+  const csv=lines.join('\r\n');
+  const blob=new Blob([csv],{type:'text/csv;charset=utf-8;'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
+  a.href=url;a.download=`bookings_${monthLabel(bkMonthAnchor).replace(' ','_')}.csv`;
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
 // ── TOOLTIP ──
 
 function escHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
@@ -1301,9 +1563,9 @@ document.addEventListener('mousemove',e=>{if(ttEl.style.display==='block')mv(e);
 
 // ── MODAL ──
 
-function openModal(title,data,timeCtx){
+function openModal(title,data,timeCtx,editRecord){
 
-  sel={cabinNum:title,type:data.type,seats:data.seats,timeCtx:timeCtx||null};
+  sel={cabinNum:title,type:data.type,seats:data.seats,timeCtx:timeCtx||null,editingId:editRecord?editRecord.id:null};
 
   document.getElementById('mtitle').textContent=title;
 
@@ -1311,7 +1573,7 @@ function openModal(title,data,timeCtx){
 
   document.getElementById('f-space').value=title;
 
-  document.getElementById('f-client').value='';
+  document.getElementById('f-client').value=editRecord?(editRecord.client||''):'';
 
   const timeRow=document.getElementById('timeFieldsRow');
 
@@ -1339,21 +1601,31 @@ function openModal(title,data,timeCtx){
 
     startInput.classList.remove('flocked');endInput.classList.remove('flocked');
 
-    startInput.value=rangeStart||tod();endInput.value=rangeEnd||'';
+    startInput.value=editRecord?editRecord.booking_start:(rangeStart||tod());
+
+    endInput.value=editRecord?editRecord.booking_end:(rangeEnd||'');
 
     timeRow.style.display='none';
 
   }
 
-  document.getElementById('f-purpose').value='';
+  document.getElementById('f-purpose').value=editRecord?(editRecord.purpose||''):'';
 
-  document.getElementById('f-pax').value=data.seats||'';
+  document.getElementById('f-pax').value=editRecord?(editRecord.pax||''):(data.seats||'');
 
   document.getElementById('mmsg').textContent='';
 
   document.getElementById('msbtn').disabled=false;
 
-  document.getElementById('msbtn').textContent='Confirm Booking';
+  document.getElementById('msbtn').textContent=editRecord?'Save Changes':'Confirm Booking';
+
+  document.getElementById('mtag').textContent=editRecord?'Edit Booking':'New Booking';
+
+  const cancelBtn=document.getElementById('mcancelbtn');
+
+  cancelBtn.style.display=editRecord?'':'none';
+
+  cancelBtn.textContent='Cancel booking';cancelBtn.dataset.confirming='0';
 
   document.getElementById('ovl').classList.add('open');ht();
 
@@ -1387,15 +1659,19 @@ async function submitBooking(){
 
   if(!purpose){msg.className='mmsg err';msg.textContent='Select a purpose.';return;}
 
+  const isEdit=!!sel.editingId;
+
   btn.disabled=true;btn.textContent='Saving…';msg.textContent='';
 
   const body={cabin_number:sel.cabinNum,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0};
 
   if(sel.timeCtx){body.start_time=sel.timeCtx.startTime;body.end_time=sel.timeCtx.endTime;}
 
+  if(isEdit)body.booking_id=sel.editingId;
+
   try{
 
-    const r=await fetch('/api/book',{method:'POST',headers:{'Content-Type':'application/json'},
+    const r=await fetch('/api/book',{method:isEdit?'PATCH':'POST',headers:{'Content-Type':'application/json'},
 
       body:JSON.stringify(body)});
 
@@ -1403,9 +1679,9 @@ async function submitBooking(){
 
     if(d.status==='success'){
 
-      msg.className='mmsg ok';msg.textContent='Booking confirmed.';
+      msg.className='mmsg ok';msg.textContent=isEdit?'Booking updated.':'Booking confirmed.';
 
-      setTimeout(()=>{closeModal();load();},1200);
+      setTimeout(()=>{closeModal();load();if(document.getElementById('bookingsView').style.display!=='none')loadBookingsMonth();},1200);
 
     }else throw new Error(d.error||'Booking failed');
 
@@ -1413,7 +1689,7 @@ async function submitBooking(){
 
     msg.className='mmsg err';msg.textContent=e.message||'Something went wrong.';
 
-    btn.disabled=false;btn.textContent='Confirm Booking';
+    btn.disabled=false;btn.textContent=isEdit?'Save Changes':'Confirm Booking';
 
   }
 

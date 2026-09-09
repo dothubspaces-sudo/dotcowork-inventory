@@ -1,4 +1,4 @@
-const { getAccessToken, creatorGet, creatorPost } = require('./zoho.js')
+const { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
 
 const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium'])
 const BUSINESS_START_MIN = 9 * 60  // 9 AM
@@ -39,13 +39,37 @@ function parseTimeToMinutes(t) {
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
-  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS')
+  res.setHeader('Access-Control-Allow-Methods', 'POST, PATCH, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
-  if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' })
-  const { cabin_number, client_name, booking_start, booking_end, purpose, total_pax, start_time, end_time } = req.body || {}
+
+  if (req.method === 'DELETE') {
+    const id = req.query.id
+    if (!id) return res.status(400).json({ error: 'Missing booking id' })
+    try {
+      const token = await getAccessToken()
+      const result = await creatorDelete(`form/Space_Bookings/${id}`, token)
+      if (result.code === 3000) {
+        return res.status(200).json({ status: 'success', message: 'Booking cancelled' })
+      }
+      return res.status(500).json({ error: 'Creator rejected the cancellation', detail: result })
+    } catch (err) {
+      console.error('book.js delete error:', err)
+      return res.status(500).json({ error: err.message })
+    }
+  }
+
+  if (req.method !== 'POST' && req.method !== 'PATCH') {
+    return res.status(405).json({ error: 'Method not allowed' })
+  }
+
+  const isEdit = req.method === 'PATCH'
+  const { cabin_number, client_name, booking_start, booking_end, purpose, total_pax, start_time, end_time, booking_id } = req.body || {}
   if (!cabin_number || !client_name || !booking_start || !booking_end || !purpose) {
     return res.status(400).json({ error: 'Missing required fields' })
+  }
+  if (isEdit && !booking_id) {
+    return res.status(400).json({ error: 'Missing booking id' })
   }
   if (booking_end < booking_start) {
     return res.status(400).json({ error: 'End date must be after start date' })
@@ -82,8 +106,10 @@ module.exports = async function handler(req, res) {
       return res.status(404).json({ error: `No inventory item found for: ${cabin_number}` })
     }
     const inventoryItemId = item.ID
+    let criteria = `Inventory_Items == ${inventoryItemId} && Booking_Start <= "${toCreatorDate(booking_end)}" && Booking_End >= "${toCreatorDate(booking_start)}"`
+    if (isEdit) criteria += ` && ID != ${booking_id}`
     const conflictData = await creatorGet(
-      `report/All_Spaces?criteria=${encodeURIComponent(`Inventory_Items == ${inventoryItemId} && Booking_Start <= "${toCreatorDate(booking_end)}" && Booking_End >= "${toCreatorDate(booking_start)}"`)}&limit=${isHourly ? 50 : 1}`,
+      `report/All_Spaces?criteria=${encodeURIComponent(criteria)}&limit=${isHourly ? 50 : 1}`,
       token
     )
     const conflicts = conflictData.data || []
@@ -115,7 +141,6 @@ module.exports = async function handler(req, res) {
       })
     }
 
-    console.log('Dates being sent:', toCreatorDate(booking_start), toCreatorDate(booking_end))
     const payload = {
       Inventory_Items: inventoryItemId,
       Client_Name:     client_name,
@@ -128,6 +153,15 @@ module.exports = async function handler(req, res) {
       payload.Start_Time = toCreatorTime(start_time)
       payload.End_Time   = toCreatorTime(end_time)
     }
+
+    if (isEdit) {
+      const result = await creatorPatch(`form/Space_Bookings/${booking_id}`, payload, token)
+      if (result.code === 3000) {
+        return res.status(200).json({ status: 'success', message: `Booking updated for ${cabin_number}`, id: booking_id })
+      }
+      return res.status(500).json({ error: 'Creator rejected the update', detail: result })
+    }
+
     const result = await creatorPost('form/Space_Bookings', payload, token)
     if (result.code === 3000) {
       return res.status(200).json({
