@@ -138,7 +138,16 @@ label.f{display:block;font-size:11px;font-weight:600;letter-spacing:.4px;text-tr
 .submit{width:100%;padding:13px;border-radius:var(--radius-xs);border:none;background:var(--brand);color:#fff;font-size:14px;font-weight:600;cursor:pointer}
 .submit:disabled{opacity:.5;cursor:not-allowed}
 .meta{font-size:12px;color:var(--txt2);line-height:1.6;background:var(--surface2);border-radius:var(--radius-xs);padding:10px 12px}
-@media(max-width:700px){.main{padding:1rem}.hdr{padding:0 1rem}.row2{grid-template-columns:1fr}.sel-row{grid-template-columns:70px 1fr 1fr 30px}}
+@media(max-width:700px){
+  .main{padding:1rem}
+  .hdr{height:auto;padding:.6rem 1rem;flex-wrap:wrap;gap:.5rem}
+  .hdr-left{flex-wrap:wrap;gap:8px;max-width:100%}
+  .hdr-left .hdiv{display:none}
+  .hloc{white-space:nowrap}
+  .search{min-width:0;width:100%}
+  .row2{grid-template-columns:1fr}
+  .sel-row{grid-template-columns:70px 1fr 1fr 30px}
+}
 </style>
 </head>
 <body>
