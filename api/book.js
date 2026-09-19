@@ -1,6 +1,9 @@
 const { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 
+// Creator v2.1 adds records through the form, but updates/deletes go through a report.
+const BOOKINGS_REPORT = 'All_Spaces'
+
 const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium'])
 const BUSINESS_START_MIN = 9 * 60  // 9 AM
 const BUSINESS_END_MIN   = 21 * 60 // 9 PM
@@ -51,7 +54,7 @@ module.exports = async function handler(req, res) {
     if (!id) return res.status(400).json({ error: 'Missing booking id' })
     try {
       const token = await getAccessToken()
-      const result = await creatorDelete(`form/Space_Bookings/${id}`, token)
+      const result = await creatorDelete(`report/${BOOKINGS_REPORT}/${id}`, token)
       if (result.code === 3000) {
         return res.status(200).json({ status: 'success', message: 'Booking cancelled' })
       }
@@ -158,7 +161,7 @@ module.exports = async function handler(req, res) {
     }
 
     if (isEdit) {
-      const result = await creatorPatch(`form/Space_Bookings/${booking_id}`, payload, token)
+      const result = await creatorPatch(`report/${BOOKINGS_REPORT}/${booking_id}`, payload, token)
       if (result.code === 3000) {
         return res.status(200).json({ status: 'success', message: `Booking updated for ${cabin_number}`, id: booking_id })
       }
