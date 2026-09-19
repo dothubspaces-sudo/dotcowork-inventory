@@ -180,6 +180,8 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--txt);min-height:
 
 .tabbtn{padding:6px 14px;border-radius:50px;border:none;background:transparent;font-size:12.5px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:var(--f);transition:all .15s;white-space:nowrap}
 
+a.tabbtn{text-decoration:none;display:inline-block}
+
 .tabbtn:hover{color:var(--txt)}
 
 .tabbtn.active{background:var(--surface);color:var(--txt);box-shadow:var(--shadow-sm)}
@@ -460,6 +462,8 @@ svg#fp{display:block;width:100%;height:auto}
       <button class="tabbtn active" id="tabFloorPlan" onclick="showTab('floorplan')">Floor Plan</button>
 
       <button class="tabbtn" id="tabBookings" onclick="showTab('bookings')">Bookings</button>
+
+      <a class="tabbtn" href="/contracts.html">Contracts</a>
 
     </div>
 
@@ -1885,6 +1889,7 @@ function updateWorkingDays() {
 // ── INIT ──
 
 setToday();
+if(location.hash==='#bookings')showTab('bookings');
 
 </script>
 

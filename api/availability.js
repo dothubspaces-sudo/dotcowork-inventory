@@ -1,4 +1,7 @@
 const { isAuthed } = require('../lib/auth.js');
+const { getAccessToken, creatorGetAll } = require('./zoho.js');
+const { toCreatorDate, fromCreatorDate, isISODate } = require('../lib/dates.js');
+const cfg = require('../lib/config.js');
 
 const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium']);
 const BUSINESS_START_MIN = 9 * 60;  // 9 AM
@@ -16,23 +19,14 @@ module.exports = async function handler(req, res) {
   const startDate = req.query.date     || new Date().toISOString().split("T")[0];
   const endDate   = req.query.end_date || startDate;
 
+  // These go straight into Creator criteria strings, so only accept real ISO dates.
+  if (!isISODate(startDate) || !isISODate(endDate)) {
+    return res.status(400).json({ error: "date and end_date must be YYYY-MM-DD" });
+  }
+
   try {
-    // Step 1 — access token
-    const tokenRes = await fetch("https://accounts.zoho.com/oauth/v2/token", {
-      method: "POST",
-      headers: { "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({
-        refresh_token: process.env.ZOHO_REFRESH_TOKEN,
-        client_id:     process.env.ZOHO_CLIENT_ID,
-        client_secret: process.env.ZOHO_CLIENT_SECRET,
-        grant_type:    "refresh_token",
-      }),
-    });
-    const tokenData = await tokenRes.json();
-    if (!tokenData.access_token) {
-      return res.status(500).json({ error: "Failed to get access token", detail: tokenData });
-    }
-    const token   = tokenData.access_token;
+    // Step 1 — access token (cached across warm invocations by zoho.js)
+    const token   = await getAccessToken();
     const base    = "https://creator.zoho.com/api/v2/dotcowork/workspace-inventory-manager/report";
     const headers = { Authorization: `Zoho-oauthtoken ${token}` };
 
@@ -42,9 +36,10 @@ module.exports = async function handler(req, res) {
       `Booking_Start <= "${endDate}" && Booking_End >= "${startDate}"`
     );
 
-    const [itemsRes, bookingsRes] = await Promise.all([
+    const [itemsRes, bookingsRes, contractRows] = await Promise.all([
       fetch(`${base}/Inventory_Items_Report?limit=200`, { headers }),
       fetch(`${base}/All_Spaces?criteria=${bookingCriteria}&limit=200`, { headers }),
+      loadContractRows(token, startDate, endDate),
     ]);
 
     const [itemsData, bookingsData] = await Promise.all([
@@ -54,6 +49,7 @@ module.exports = async function handler(req, res) {
 
     const items    = itemsData.data    || [];
     const bookings = bookingsData.data || [];
+    const contractBooked = mapContractOccupancy(contractRows, items);
 
     // Step 3 — build booked map keyed by Cabin_Number (last-overlap wins, matches prior behavior)
     // and, for hourly spaces, collect every overlapping booking so slot-level availability can be derived
@@ -78,7 +74,8 @@ module.exports = async function handler(req, res) {
     // Step 4 — map every inventory item with its status
     const spaces = items.map(item => {
       const cabinNum = item.Cabin_Number || "";
-      const booking  = bookedMap[cabinNum];
+      // A cabin under an active contract shows as occupied; contracts never cover the hourly spaces.
+      const booking  = contractBooked[cabinNum] || bookedMap[cabinNum];
       const base = {
         cabin_number:   cabinNum,
         display_name:   item.Unit_Label     || cabinNum,
@@ -154,6 +151,55 @@ module.exports = async function handler(req, res) {
   }
 }
 
+const refId = v => (v && typeof v === 'object') ? String(v.ID || '') : (v == null ? '' : String(v));
+
+// Long-term contracts occupy cabins on the floor plan. If the Contracts forms aren't set up in
+// Creator yet (or Creator errors), the floor plan must keep working, so failures are logged and skipped.
+async function loadContractRows(token, startDate, endDate) {
+  try {
+    const criteria = encodeURIComponent(
+      `Status == "Active" && Start_Date <= "${toCreatorDate(endDate)}" && End_Date >= "${toCreatorDate(startDate)}"`
+    );
+    const [contracts, lines] = await Promise.all([
+      creatorGetAll(`report/${cfg.CONTRACT_REPORT}?criteria=${criteria}`, token),
+      creatorGetAll(`report/${cfg.LINE_REPORT}`, token),
+    ]);
+    return { contracts, lines };
+  } catch (err) {
+    console.error('contracts overlay skipped:', err.message);
+    return { contracts: [], lines: [] };
+  }
+}
+
+// Cabin_Number -> booking-shaped record, so the existing tooltip/labels work unchanged.
+function mapContractOccupancy({ contracts, lines }, items) {
+  const cabinByItemId = {};
+  items.forEach(i => {
+    if (i.Cabin_Number && !HOURLY_SPACES.has(i.Cabin_Number)) cabinByItemId[String(i.ID)] = i.Cabin_Number;
+  });
+  const contractsById = {};
+  contracts.forEach(c => { contractsById[String(c.ID)] = c; });
+
+  const out = {};
+  lines.forEach(l => {
+    const c = contractsById[refId(l.Contract)];
+    const cabin = cabinByItemId[refId(l.Inventory_Items)];
+    if (!c || !cabin) return;
+    // If several contracts touch the range, the one that starts latest wins (same as bookings).
+    const prev = out[cabin];
+    if (prev && fromCreatorDate(prev.booking_start) >= fromCreatorDate(c.Start_Date)) return;
+    out[cabin] = {
+      id:            "",
+      client:        c.Company_Name || "",
+      purpose:       "Long-term contract",
+      pax:           Number(l.Seats) || 0,
+      booking_start: c.Start_Date || "",
+      booking_end:   c.End_Date   || "",
+    };
+  });
+  return out;
+}
+
 function stripIds(spaces) {
   return spaces.map(({ id, ...rest }) => (
     rest.slots ? { ...rest, slots: rest.slots.map(({ id: slotId, ...slot }) => slot) } : rest
@@ -192,11 +238,11 @@ function minutesToHHMM(mins) {
 
 function dateRangeDays(startDate, endDate) {
   const days = [];
-  const cur = new Date(startDate + 'T00:00:00');
-  const end = new Date(endDate + 'T00:00:00');
+  const cur = new Date(startDate + 'T00:00:00Z');
+  const end = new Date(endDate + 'T00:00:00Z');
   while (cur <= end) {
     days.push(cur.toISOString().split('T')[0]);
-    cur.setDate(cur.getDate() + 1);
+    cur.setUTCDate(cur.getUTCDate() + 1);
   }
   return days;
 }

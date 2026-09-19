@@ -28,6 +28,23 @@ async function creatorGet(path, token) {
   return res.json()
 }
 
+// Reads every page of a report (Creator caps a page at 200). Code 3100 means "no records"; any
+// other non-3000 code is a real error (e.g. the report doesn't exist) and is thrown, not swallowed.
+async function creatorGetAll(path, token, pageSize = 200, maxPages = 25) {
+  const sep = path.includes('?') ? '&' : '?'
+  const out = []
+  for (let page = 0; page < maxPages; page++) {
+    const res = await creatorGet(`${path}${sep}from=${page * pageSize + 1}&limit=${pageSize}`, token)
+    if (res.code && res.code !== 3000 && res.code !== 3100) {
+      throw new Error(`Creator error ${res.code}: ${res.message || 'request failed'}`)
+    }
+    const rows = res.data || []
+    out.push(...rows)
+    if (rows.length < pageSize) break
+  }
+  return out
+}
+
 async function creatorPost(path, data, token) {
   const res = await fetch(`${BASE_URL}/${path}`, {
     method:  'POST',
@@ -66,4 +83,4 @@ async function creatorDelete(path, token) {
   return result
 }
 
-module.exports = { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete }
+module.exports = { getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete }
