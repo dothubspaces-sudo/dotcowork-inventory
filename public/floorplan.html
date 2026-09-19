@@ -180,8 +180,6 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--txt);min-height:
 
 .tabbtn{padding:6px 14px;border-radius:50px;border:none;background:transparent;font-size:12.5px;font-weight:600;color:var(--txt2);cursor:pointer;font-family:var(--f);transition:all .15s;white-space:nowrap}
 
-a.tabbtn{text-decoration:none;display:inline-block}
-
 .tabbtn:hover{color:var(--txt)}
 
 .tabbtn.active{background:var(--surface);color:var(--txt);box-shadow:var(--shadow-sm)}
@@ -443,6 +441,8 @@ svg#fp{display:block;width:100%;height:auto}
 .slot-continue:disabled{opacity:.4;cursor:not-allowed}
 </style>
 
+<link rel="stylesheet" href="/contracts.css"/>
+
 </head>
 
 <body>
@@ -459,7 +459,7 @@ svg#fp{display:block;width:100%;height:auto}
 
     <div>
 
-      <div class="hloc">Tharamani · Floor Plan</div>
+      <div class="hloc" id="hloc">Tharamani · Floor Plan</div>
 
     </div>
 
@@ -471,7 +471,7 @@ svg#fp{display:block;width:100%;height:auto}
 
       <button class="tabbtn" id="tabBookings" onclick="showTab('bookings')">Bookings</button>
 
-      <a class="tabbtn" href="/contracts.html">Contracts</a>
+      <button class="tabbtn" id="tabContracts" onclick="showTab('contracts')">Contracts</button>
 
     </div>
 
@@ -491,7 +491,7 @@ svg#fp{display:block;width:100%;height:auto}
 
   <!-- CONTROL BAR -->
 
-  <div class="ctrlbar">
+  <div class="ctrlbar" id="ctrlBar">
 
     <!-- DATE RANGE PICKER -->
 
@@ -815,6 +815,82 @@ svg#fp{display:block;width:100%;height:auto}
 
   </div>
 
+  <!-- CONTRACTS TAB (long-term cabin agreements; logic lives in contracts.js) -->
+
+  <div id="contractsView" style="display:none">
+
+    <div id="ctBanner"></div>
+
+    <div class="ct-toolbar">
+
+      <select class="ct-select" id="ctLocSel" style="display:none" onchange="CT.changeLocation(this.value)"></select>
+
+      <input class="ct-search" id="ctSearch" type="search" placeholder="Search company, contact, cabin…" oninput="CT.onSearch(this.value)"/>
+
+      <span class="ct-spacer"></span>
+
+      <button class="ct-link" onclick="CT.signOut()">Sign out</button>
+
+      <button class="ct-btn" onclick="CT.openForm('create')">+ New contract</button>
+
+    </div>
+
+    <div id="ctGate" class="ct-sec" style="display:none">
+
+      <div class="ct-empty">Sign in to view contracts. <button class="ct-abtn" onclick="CT.load()">Sign in</button></div>
+
+    </div>
+
+    <div id="ctContent" style="display:none">
+
+      <div class="ct-cards" id="ctCards"></div>
+
+      <div class="ct-sec">
+
+        <div class="ct-sec-h">
+
+          <span>Cabin occupancy</span>
+
+          <span class="ct-legend">
+
+            <span><i style="background:var(--avail-bd)"></i>Vacant</span>
+
+            <span><i style="background:var(--occ-bd)"></i>Occupied</span>
+
+            <span><i style="background:var(--warn-bd)"></i>Expiring ≤30d</span>
+
+            <span><i style="background:var(--occ)"></i>Expired / ≤7d</span>
+
+          </span>
+
+        </div>
+
+        <div class="ct-occ" id="ctOcc"></div>
+
+      </div>
+
+      <div class="ct-sec">
+
+        <div class="ct-sec-h"><span>Contracts</span><div class="ct-chips" id="ctChips"></div></div>
+
+        <div class="ct-wrap">
+
+          <table class="ct-table">
+
+            <thead><tr><th>Contract</th><th>Company &amp; contact</th><th>Cabins</th><th>Seats</th><th>Monthly rent</th><th>Term</th><th>Status</th><th>Renewal</th><th></th></tr></thead>
+
+            <tbody id="ctTbody"></tbody>
+
+          </table>
+
+        </div>
+
+      </div>
+
+    </div>
+
+  </div>
+
 </div>
 
 <!-- TOOLTIP -->
@@ -943,7 +1019,83 @@ svg#fp{display:block;width:100%;height:auto}
 
 </div>
 
+<!-- CONTRACT FORM MODAL -->
+
+<div class="ct-ovl" id="ctOvl">
+
+  <div class="ct-modal">
+
+    <div class="ct-m-head">
+
+      <button class="ct-m-x" onclick="CT.closeForm()">✕</button>
+
+      <div class="ct-m-tag" id="ctMTag">New contract</div>
+
+      <div class="ct-m-title" id="ctMTitle"></div>
+
+      <div class="ct-m-sub" id="ctMSub"></div>
+
+    </div>
+
+    <div class="ct-m-body">
+
+      <div id="ctMMeta" class="ct-meta" style="display:none"></div>
+
+      <div><label class="ct-f">Company name</label><input id="ctFCompany" type="text" placeholder="e.g. Acme Technologies Pvt Ltd"/></div>
+
+      <div class="ct-row2">
+
+        <div><label class="ct-f">Contact person</label><input id="ctFPerson" type="text"/></div>
+
+        <div><label class="ct-f">Contact number</label><input id="ctFPhone" type="tel"/></div>
+
+      </div>
+
+      <div><label class="ct-f">Contact email</label><input id="ctFEmail" type="email" placeholder="Renewal notices are sent here"/></div>
+
+      <div class="ct-row2">
+
+        <div><label class="ct-f">Start date</label><input id="ctFStart" type="date" oninput="CT.renderPicker()"/></div>
+
+        <div><label class="ct-f">End date</label><input id="ctFEnd" type="date" oninput="CT.renderPicker()"/></div>
+
+      </div>
+
+      <div>
+
+        <label class="ct-f">Cabins <span id="ctPickHint" style="text-transform:none;letter-spacing:0;font-weight:400"></span></label>
+
+        <div class="ct-pick" id="ctPicker"></div>
+
+      </div>
+
+      <div id="ctSelRows" style="display:flex;flex-direction:column;gap:8px"></div>
+
+      <div class="ct-totals" id="ctTotals"></div>
+
+      <div class="ct-row2">
+
+        <div><label class="ct-f">Security deposit (₹)</label><input id="ctFDeposit" type="number" min="0" step="1"/></div>
+
+        <div></div>
+
+      </div>
+
+      <div><label class="ct-f">Notes</label><textarea id="ctFNotes" rows="2"></textarea></div>
+
+      <div class="ct-m-err" id="ctMErr"></div>
+
+      <button class="ct-submit" id="ctMSubmit" onclick="CT.submitForm()">Save contract</button>
+
+    </div>
+
+  </div>
+
+</div>
+
 <script src="/auth.js"></script>
+
+<script src="/contracts.js"></script>
 
 <script>
 
@@ -1351,19 +1503,21 @@ function setExt(key,isOc,data){
 
 // ── BOOKINGS TAB ──
 
+const TAB_VIEWS={floorplan:'floorPlanView',bookings:'bookingsView',contracts:'contractsView'};
+const TAB_BUTTONS={floorplan:'tabFloorPlan',bookings:'tabBookings',contracts:'tabContracts'};
+
 function showTab(tab){
-  const fp=document.getElementById('floorPlanView');
-  const bk=document.getElementById('bookingsView');
-  const t1=document.getElementById('tabFloorPlan');
-  const t2=document.getElementById('tabBookings');
-  if(tab==='bookings'){
-    fp.style.display='none';bk.style.display='';
-    t1.classList.remove('active');t2.classList.add('active');
-    loadBookingsMonth();
-  }else{
-    fp.style.display='';bk.style.display='none';
-    t1.classList.add('active');t2.classList.remove('active');
-  }
+  if(!TAB_VIEWS[tab])tab='floorplan';
+  Object.keys(TAB_VIEWS).forEach(k=>{
+    document.getElementById(TAB_VIEWS[k]).style.display=k===tab?'':'none';
+    document.getElementById(TAB_BUTTONS[k]).classList.toggle('active',k===tab);
+  });
+  document.getElementById('hloc').textContent='Tharamani · '+({floorplan:'Floor Plan',bookings:'Bookings',contracts:'Contracts'})[tab];
+  // The check-in/out picker only applies to the floor plan and bookings views.
+  document.getElementById('ctrlBar').style.display=tab==='contracts'?'none':'';
+  try{history.replaceState(null,'',tab==='floorplan'?location.pathname+location.search:'#'+tab);}catch(e){}
+  if(tab==='bookings')loadBookingsMonth();
+  if(tab==='contracts')CT.show();
 }
 
 let bkMonthAnchor=new Date();bkMonthAnchor.setDate(1);
@@ -1897,7 +2051,7 @@ function updateWorkingDays() {
 // ── INIT ──
 
 setToday();
-if(location.hash==='#bookings')showTab('bookings');
+if(location.hash==='#bookings'||location.hash==='#contracts')showTab(location.hash.slice(1));
 
 </script>
 
