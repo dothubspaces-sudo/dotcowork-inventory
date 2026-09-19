@@ -1,4 +1,5 @@
 const { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
+const { requireAuth } = require('../lib/auth.js')
 
 const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium'])
 const BUSINESS_START_MIN = 9 * 60  // 9 AM
@@ -42,6 +43,8 @@ module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Methods', 'POST, PATCH, DELETE, OPTIONS')
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type')
   if (req.method === 'OPTIONS') return res.status(200).end()
+
+  if ((req.method === 'PATCH' || req.method === 'DELETE') && !requireAuth(req, res)) return
 
   if (req.method === 'DELETE') {
     const id = req.query.id

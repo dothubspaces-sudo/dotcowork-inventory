@@ -1,8 +1,11 @@
+const { isAuthed } = require('../lib/auth.js');
+
 const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium']);
 const BUSINESS_START_MIN = 9 * 60;  // 9 AM
 const BUSINESS_END_MIN   = 21 * 60; // 9 PM
 
-export default async function handler(req, res) {
+module.exports = async function handler(req, res) {
+  res.setHeader("Cache-Control", "private, no-store");
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
@@ -133,18 +136,28 @@ export default async function handler(req, res) {
       end_time:      b.End_Time      || "",
     })).filter(b => b.cabin_number && b.id);
 
+    // Booking IDs are what edit/cancel act on, so they're only sent to logged-in users.
+    // The floor plan itself (status, client, times) stays visible to everyone as before.
+    const authed = isAuthed(req);
     return res.status(200).json({
       status:   "success",
+      authed,
       date:     startDate,
       end_date: endDate,
-      spaces,
-      bookings: allBookings,
+      spaces:   authed ? spaces : stripIds(spaces),
+      bookings: authed ? allBookings : [],
     });
 
   } catch (err) {
     console.error(err);
     return res.status(500).json({ error: err.message });
   }
+}
+
+function stripIds(spaces) {
+  return spaces.map(({ id, ...rest }) => (
+    rest.slots ? { ...rest, slots: rest.slots.map(({ id: slotId, ...slot }) => slot) } : rest
+  ));
 }
 
 // ── hourly slot helpers ──

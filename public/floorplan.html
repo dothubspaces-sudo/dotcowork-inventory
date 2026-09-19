@@ -931,6 +931,8 @@ svg#fp{display:block;width:100%;height:auto}
 
 </div>
 
+<script src="/auth.js"></script>
+
 <script>
 
 // ── CABIN DATA ──
@@ -1365,14 +1367,23 @@ function monthLabel(anchor){
   return anchor.toLocaleDateString('en-US',{month:'long',year:'numeric'});
 }
 
-async function loadBookingsMonth(){
+let bkNeedsLogin=false;
+
+async function loadBookingsMonth(retried){
   const labelEl=document.getElementById('bkMonthLabel');
   if(labelEl)labelEl.textContent=monthLabel(bkMonthAnchor);
   const {start,end}=monthRange(bkMonthAnchor);
+  bkNeedsLogin=false;
   try{
     const r=await fetch(`/api/availability?date=${start}&end_date=${end}`);
     const d=await r.json();
-    bkRawBookings=d.status==='success'?(d.bookings||[]):[];
+    if(d.status==='success'&&!d.authed){
+      if(!retried&&await promptLogin())return loadBookingsMonth(true);
+      bkNeedsLogin=true;
+      bkRawBookings=[];
+    }else{
+      bkRawBookings=d.status==='success'?(d.bookings||[]):[];
+    }
   }catch(e){
     console.error(e);
     bkRawBookings=[];
@@ -1417,7 +1428,11 @@ function renderBookingsTable(){
   const rows=bookingRows();
   bookingsById={};
   rows.forEach(r=>{bookingsById[r.id]=r;});
-  if(countEl)countEl.textContent=rows.length?`${rows.length} booking${rows.length===1?'':'s'}`:'No bookings';
+  if(countEl)countEl.textContent=rows.length?`${rows.length} booking${rows.length===1?'':'s'}`:(bkNeedsLogin?'':'No bookings');
+  if(bkNeedsLogin){
+    tbody.innerHTML=`<tr><td colspan="7" class="bk-empty">Sign in to view and manage bookings. <button class="bk-btn" onclick="loadBookingsMonth()">Sign in</button></td></tr>`;
+    return;
+  }
   if(!rows.length){
     tbody.innerHTML=`<tr><td colspan="7" class="bk-empty">No bookings this month</td></tr>`;
     return;
@@ -1464,7 +1479,7 @@ function confirmThenRun(btn,runFn){
 
 async function doCancel(id,btn,msgEl){
   try{
-    const r=await fetch('/api/book?id='+encodeURIComponent(id),{method:'DELETE'});
+    const r=await apiFetch('/api/book?id='+encodeURIComponent(id),{method:'DELETE'});
     const d=await r.json();
     if(d.status!=='success')throw new Error(d.error||'Failed to cancel booking');
     if(sel&&sel.editingId===id)closeModal();
@@ -1671,7 +1686,7 @@ async function submitBooking(){
 
   try{
 
-    const r=await fetch('/api/book',{method:isEdit?'PATCH':'POST',headers:{'Content-Type':'application/json'},
+    const r=await apiFetch('/api/book',{method:isEdit?'PATCH':'POST',headers:{'Content-Type':'application/json'},
 
       body:JSON.stringify(body)});
 
