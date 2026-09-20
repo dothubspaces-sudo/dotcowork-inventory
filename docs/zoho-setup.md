@@ -33,7 +33,7 @@ new refresh token with these scopes is needed.
 
 ## 3. Form `Contracts`
 
-Report link name: `Contracts_Report` (Creator's auto-created report, same pattern as `Inventory_Items_Report`; check it under the report's settings).
+Report link name: `All_Contracts`.
 
 | Field link name | Type | Notes |
 | --- | --- | --- |
