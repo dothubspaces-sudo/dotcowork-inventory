@@ -86,54 +86,177 @@ Training Room, Auditorium). Meeting rooms, the board room, the training room and
 put under a contract. Please confirm the real `Workspace_Type` values in Zoho; if the cabins use a different
 word, tell us and we will adjust `CABIN_TYPE_PATTERN` in `lib/config.js`.
 
-## 6. Renewal email (scheduled workflow, 30 days before expiry)
+## 6. Renewal reminders and overdue alerts (two Creator schedules)
 
-In Creator: **Workflow > Schedules > Create**, on form `Contracts`, frequency **Daily** at 09:00 in the
-app's time zone (IST), with this record criteria:
+Both run on form `Contracts`, **Daily at 09:00** in the app's time zone (IST). Sender is
+`renewals@dotcoworking.com`, which must be an allowed sender in Creator (verify the address in Creator's email/sender
+settings, and set up SPF/DKIM for the domain so the mail is not filtered as spam). If a script errors on the `from`
+address, that is the cause.
+
+### 6a. Renewal reminders: 30, 14, 7 and 3 days before the end date
+
+**Record criteria:**
 
 ```
-Status == "Active" && Renewal_Status == "Not Due" && End_Date >= zoho.currentdate && End_Date <= zoho.currentdate.addDay(30)
+Status == "Active" && (Renewal_Status == "Not Due" || Renewal_Status == "Notice Sent") && End_Date >= zoho.currentdate && End_Date <= zoho.currentdate.addDay(30)
 ```
 
-Script (runs once per matching contract). Replace `team@yourdomain.com` with the team address to CC:
+**Script** (runs once per matching contract; the client is emailed, the team is CC'd):
 
 ```deluge
-cabinList = List();
-for each line in Contract_Cabins[Contract == input.ID]
+sender = "renewals@dotcoworking.com";
+ccList = "manager@dotcoworking.com, shiva@dotcoworking.com, sales@dotcoworking.com, manoj@dotcoworking.com";
+
+// Days left until the end date (the criteria guarantees it is today or later)
+daysLeft = zoho.currentdate.daysBetween(input.End_Date).abs().toLong();
+
+// Which reminder we are now due for: 30, 14, 7 or 3 days before the end
+if(daysLeft <= 3)
 {
-	cabinList.add(line.Inventory_Items.Cabin_Number);
+	stage = 3;
 }
-cabins = cabinList.toString(", ");
-endText = input.End_Date.toString("dd MMM yyyy");
+else if(daysLeft <= 7)
+{
+	stage = 7;
+}
+else if(daysLeft <= 14)
+{
+	stage = 14;
+}
+else
+{
+	stage = 30;
+}
 
-sendmail
-[
-	from: zoho.adminuserid
-	to: input.Contact_Email
-	cc: "team@yourdomain.com"
-	subject: "Your DOT Cowork agreement for " + cabins + " expires on " + endText
-	message: "<p>Dear " + input.Contact_Person + ",</p>"
-		+ "<p>This is a reminder that your agreement with DOT Cowork for <b>" + cabins + "</b> "
-		+ "(" + input.Company_Name + ") ends on <b>" + endText + "</b>.</p>"
-		+ "<p>To renew, please reply to this email or contact our team and we will prepare the renewal "
-		+ "agreement for you.</p>"
-		+ "<p>Regards,<br/>Team DOT Cowork</p>"
-]
+// Which reminder was sent last. It is worked out from the date the last notice went out, so no extra
+// field is needed, and an extended end date automatically restarts the 30/14/7/3 cycle.
+lastStage = 999;
+if(input.Renewal_Notice_Sent_On != null)
+{
+	lastNoticeDate = input.Renewal_Notice_Sent_On.toDate();
+	if(lastNoticeDate <= input.End_Date)
+	{
+		daysLeftAtLastNotice = lastNoticeDate.daysBetween(input.End_Date).abs().toLong();
+		if(daysLeftAtLastNotice <= 3)
+		{
+			lastStage = 3;
+		}
+		else if(daysLeftAtLastNotice <= 7)
+		{
+			lastStage = 7;
+		}
+		else if(daysLeftAtLastNotice <= 14)
+		{
+			lastStage = 14;
+		}
+		else if(daysLeftAtLastNotice <= 30)
+		{
+			lastStage = 30;
+		}
+	}
+}
 
-input.Renewal_Status = "Notice Sent";
-input.Renewal_Notice_Sent_On = zoho.currenttime;
+// Send only when a new (closer) reminder is due. Never sends twice for the same stage, and if a daily
+// run was missed the next run sends the current stage instead of the missed one.
+if(stage < lastStage)
+{
+	cabinList = List();
+	for each line in Contract_Cabins[Contract == input.ID]
+	{
+		cabinList.add(line.Inventory_Items.Cabin_Number);
+	}
+	cabins = cabinList.toString(", ");
+	endText = input.End_Date.toString("dd MMM yyyy");
+	dayWord = if(daysLeft == 1, "day", "days");
+
+	sendmail
+	[
+		from: sender
+		to: input.Contact_Email
+		cc: ccList
+		subject: "Reminder: your DOT Cowork agreement for " + cabins + " ends in " + daysLeft + " " + dayWord + " (" + endText + ")"
+		message: "<p>Dear " + input.Contact_Person + ",</p>"
+			+ "<p>This is a reminder that your agreement with DOT Cowork for <b>" + cabins + "</b> "
+			+ "(" + input.Company_Name + ") ends on <b>" + endText + "</b>, which is in <b>" + daysLeft + " " + dayWord + "</b>.</p>"
+			+ "<p>To renew, please reply to this email or contact our team and we will prepare the renewal "
+			+ "agreement for you.</p>"
+			+ "<p>Regards,<br/>Team DOT Cowork</p>"
+	]
+
+	input.Renewal_Status = "Notice Sent";
+	input.Renewal_Notice_Sent_On = zoho.currenttime;
+}
 ```
 
 How it behaves:
 
-- The window is "30 days or fewer", not "exactly 30". On a normal day the notice goes out on day 30. If a
-  daily run is ever missed, the next run still catches the contract.
-- Setting `Renewal_Status` to `Notice Sent` stops the same contract being emailed again.
-- A contract created with fewer than 30 days left gets its notice on the next daily run.
-- If a contract's end date is moved later (an extension) the app puts `Renewal_Status` back to `Not Due`, so the
-  next 30-day notice still goes out.
-- The sender needs to be allowed in Creator (`from: zoho.adminuserid` is the app admin). Send a test by
-  running the schedule once against a contract ending in about 30 days.
+- One email when 30 days or fewer remain, then again at 14 or fewer, 7 or fewer and 3 or fewer. Each stage is sent once.
+- A contract created with, say, 10 days left gets the 14-day-stage email on the next run, then the 7 and 3-day ones.
+- It stops as soon as `Renewal_Status` becomes `Renewed` or `Declined` (the portal's **Renew** button sets `Renewed`), or
+  the contract is terminated. If the team renews outside the portal, set `Renewal_Status` by hand or the reminders
+  keep going.
+- An add-on cabin has its own end date, so it gets its own reminders.
+
+### 6b. Overdue alert: contracts past their end date with no decision
+
+Goes to the **team only** (not the client), on the day after the end date and then every 7 days (day 1, 8, 15, 22, ...).
+
+**Record criteria:**
+
+```
+Status == "Active" && (Renewal_Status == "Not Due" || Renewal_Status == "Notice Sent") && End_Date < zoho.currentdate
+```
+
+**Script:**
+
+```deluge
+sender = "renewals@dotcoworking.com";
+teamList = "manager@dotcoworking.com, shiva@dotcoworking.com, sales@dotcoworking.com, manoj@dotcoworking.com";
+
+daysOverdue = input.End_Date.daysBetween(zoho.currentdate).abs().toLong();
+
+// The schedule runs daily; only send on day 1 after the end date and every 7 days after that
+if(daysOverdue % 7 == 1)
+{
+	cabinList = List();
+	for each line in Contract_Cabins[Contract == input.ID]
+	{
+		cabinList.add(line.Inventory_Items.Cabin_Number);
+	}
+	cabins = cabinList.toString(", ");
+	endText = input.End_Date.toString("dd MMM yyyy");
+	dayWord = if(daysOverdue == 1, "day", "days");
+
+	sendmail
+	[
+		from: sender
+		to: teamList
+		subject: "Action needed: " + input.Contract_No + " (" + input.Company_Name + ") ended " + daysOverdue + " " + dayWord + " ago"
+		message: "<p>The following contract has ended and has no renewal decision recorded.</p>"
+			+ "<p><b>" + input.Contract_No + "</b> - " + input.Company_Name + "<br/>"
+			+ "Cabins: " + cabins + "<br/>"
+			+ "Ended: " + endText + " (" + daysOverdue + " " + dayWord + " ago)<br/>"
+			+ "Contact: " + input.Contact_Person + ", " + input.Contact_Phone + ", " + input.Contact_Email + "</p>"
+			+ "<p>Please renew it or terminate it in the portal's Contracts tab. "
+			+ "This alert repeats every 7 days until the contract is renewed, declined or terminated.</p>"
+	]
+}
+```
+
+The alert stops when the contract is renewed (the portal's **Renew** button), its renewal status is set to `Declined`, or it
+is terminated.
+
+### 6c. Testing safely
+
+These scripts send real email. Test on a hand-made contract (with one `Contract_Cabins` row):
+
+- Use **your own address** as `Contact_Email`, and temporarily change `ccList` / `teamList` to your own address too.
+- Renewal: try end dates of 29, 13, 6 and 2 days from today. Each should send one email when the schedule runs, and
+  running it again should send nothing.
+- Overdue: an end date 1 day ago should send, 3 days ago should not, 8 days ago should send.
+- If a run sends nothing, or the numbers in the email look wrong (for example a negative number of days), tell us. That
+  points to the sign of `daysBetween` in your Creator version.
+- Put the real team addresses back afterwards and delete the test records.
 
 ## 7. Loading existing contracts
 
@@ -154,4 +277,4 @@ The code has been tested against a mock of Creator's API, not the live account. 
    shows "Add-on to DC-…" while the original shows "Add-ons: DC-…" and is unchanged.
 5. On the floor plan's **Bookings** tab, edit and cancel a throwaway booking. This confirms the update/delete
    calls and the scopes in section 2.
-6. Run the renewal schedule against a test contract ending in about 30 days and confirm the email and CC.
+6. Run both schedules against test contracts as described in section 6c and confirm the emails and CC.
