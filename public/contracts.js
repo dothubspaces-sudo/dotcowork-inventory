@@ -119,6 +119,13 @@ function renderChips(){
 
 function setFilter(k){filter=k;renderChips();renderTable();}
 
+// Contract number for a contract id, shown in the add-on links. The linked contract can be in
+// another location (and so not in this list), in which case there is nothing better to show.
+function contractNo(id){
+  const c=data&&data.contracts.find(x=>x.id===id);
+  return (c&&c.contract_no)||'another contract';
+}
+
 function phaseBadge(c){
   switch(c.phase){
     case 'active':return '<span class="ct-badge ct-b-active">Active</span>';
@@ -154,14 +161,22 @@ function renderTable(){
     $('tbody').innerHTML=`<tr><td colspan="9" class="ct-empty">${data.contracts.length?'No contracts match this view.':'No contracts yet. Add the first one with “+ New contract”.'}</td></tr>`;
     return;
   }
+  const addOns={};
+  data.contracts.forEach(c=>{if(c.add_on_to)(addOns[c.add_on_to]||(addOns[c.add_on_to]=[])).push(c.contract_no||'—');});
   $('tbody').innerHTML=rows.map(c=>{
+    const canAdd=c.phase==='active'||c.phase==='expiring'||c.phase==='upcoming';
     const acts=c.phase==='terminated'?'':
       `<button class="ct-abtn" onclick="CT.openForm('edit','${esc(c.id)}')">Edit</button>
        <button class="ct-abtn" onclick="CT.openForm('renew','${esc(c.id)}')">Renew</button>
+       ${canAdd?`<button class="ct-abtn" onclick="CT.openForm('addon','${esc(c.id)}')">Add cabin</button>`:''}
        <button class="ct-abtn danger" onclick="CT.confirmThenRun(this,()=>CT.terminate('${esc(c.id)}'))">Terminate</button>`;
+    const links=[
+      c.add_on_to?`Add-on to ${esc(contractNo(c.add_on_to))}`:'',
+      addOns[c.id]?`Add-ons: ${esc(addOns[c.id].join(', '))}`:''
+    ].filter(Boolean).map(t=>`<div class="ct-sub">${t}</div>`).join('');
     return `<tr>
       <td>${esc(c.contract_no||'—')}</td>
-      <td><div class="ct-co">${esc(c.company_name)}</div><div class="ct-sub">${esc(c.contact_person)} · ${esc(c.contact_phone)}</div><div class="ct-sub">${esc(c.contact_email)}</div></td>
+      <td><div class="ct-co">${esc(c.company_name)}</div><div class="ct-sub">${esc(c.contact_person)} · ${esc(c.contact_phone)}</div><div class="ct-sub">${esc(c.contact_email)}</div>${links}</td>
       <td>${c.cabins.map(l=>`<span class="ct-tag">${esc(l.cabin_number)}</span>`).join('')}</td>
       <td>${c.total_seats}</td>
       <td>${inr(c.monthly_rent)}</td>
@@ -202,23 +217,32 @@ async function setRenewal(id,sel){
 function openForm(mode,id,presetItemId){
   if(!data)return;
   const c=id?data.contracts.find(x=>x.id===id):null;
-  form={mode,id:c?c.id:null,excludeId:mode==='create'?null:(c?c.id:null),cabins:{}};
-  const tags={create:'New contract',edit:'Edit contract',renew:'Renew contract'};
+  // 'addon' = an extra cabin for an existing client, on its own contract and term, linked to the one clicked.
+  form={mode,id:c?c.id:null,excludeId:(mode==='create'||mode==='addon')?null:(c?c.id:null),cabins:{}};
+  const tags={create:'New contract',edit:'Edit contract',renew:'Renew contract',addon:'Add cabin'};
   $('mTag').textContent=tags[mode];
   $('mTitle').textContent=c?c.company_name:curLoc;
-  $('mSub').textContent=mode==='renew'?'Next term — dates and cabins are prefilled from the current contract.':`${curLoc} · private cabins only`;
-  $('mSubmit').textContent=mode==='edit'?'Save changes':(mode==='renew'?'Create renewal':'Create contract');
+  $('mSub').textContent=mode==='renew'?'Next term — dates and cabins are prefilled from the current contract.':
+    (mode==='addon'?'Own start and end date. Set the term for the new cabin(s) below.':`${curLoc} · private cabins only`);
+  $('mSubmit').textContent=mode==='edit'?'Save changes':(mode==='renew'?'Create renewal':(mode==='addon'?'Add cabin contract':'Create contract'));
   $('mErr').textContent='';
   $('mSubmit').disabled=false;
 
   const meta=$('mMeta');
   if(c&&mode==='edit'){
     meta.style.display='';
-    meta.innerHTML=`${esc(c.contract_no||'')} · Renewal: <b>${esc(c.renewal_status)}</b>${c.renewal_notice_sent_on?` (notice sent ${esc(c.renewal_notice_sent_on)})`:''}${c.renewed_from?' · renewal of an earlier contract':''}`;
+    meta.innerHTML=`${esc(c.contract_no||'')} · Renewal: <b>${esc(c.renewal_status)}</b>${c.renewal_notice_sent_on?` (notice sent ${esc(c.renewal_notice_sent_on)})`:''}${c.renewed_from?' · renewal of an earlier contract':''}${c.add_on_to?` · add-on to ${esc(contractNo(c.add_on_to))}`:''}`;
+  }else if(c&&mode==='addon'){
+    meta.style.display='';
+    meta.innerHTML=`Linked to ${esc(c.contract_no||'the current contract')} (${fmtDate(c.start_date)} → ${fmtDate(c.end_date)}). That contract is not changed.`;
   }else meta.style.display='none';
 
   const today=data.today;
-  if(c){
+  if(c&&mode==='addon'){
+    $('fCompany').value=c.company_name;$('fPerson').value=c.contact_person;$('fPhone').value=c.contact_phone;$('fEmail').value=c.contact_email;
+    $('fDeposit').value='';$('fNotes').value='';
+    $('fStart').value=today;$('fEnd').value=addDays(addDays(today,365),-1);
+  }else if(c){
     $('fCompany').value=c.company_name;$('fPerson').value=c.contact_person;$('fPhone').value=c.contact_phone;$('fEmail').value=c.contact_email;
     $('fDeposit').value=c.security_deposit||'';$('fNotes').value=c.notes;
     c.cabins.forEach(l=>{form.cabins[l.item_id]={seats:l.seats,price:l.monthly_price};});
@@ -290,6 +314,7 @@ async function submitForm(){
     cabins:Object.entries(form.cabins).map(([item_id,v])=>({item_id,seats:v.seats,monthly_price:v.price}))
   };
   const {mode,id}=form;
+  if(mode==='addon')body.add_on_to=id;
   const url=mode==='edit'?'/api/contracts?id='+encodeURIComponent(id):(mode==='renew'?'/api/contracts?action=renew&id='+encodeURIComponent(id):'/api/contracts');
   const btn=$('mSubmit');btn.disabled=true;const label=btn.textContent;btn.textContent='Saving…';
   try{

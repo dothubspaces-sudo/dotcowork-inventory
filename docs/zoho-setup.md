@@ -33,7 +33,7 @@ new refresh token with these scopes is needed.
 
 ## 3. Form `Contracts`
 
-Report link name: `All_Contracts` (check the auto-created report's link name matches).
+Report link name: `Contracts_Report` (Creator's auto-created report, same pattern as `Inventory_Items_Report`; check it under the report's settings).
 
 | Field link name | Type | Notes |
 | --- | --- | --- |
@@ -51,7 +51,8 @@ Report link name: `All_Contracts` (check the auto-created report's link name mat
 | `Status` | Dropdown: `Active`, `Terminated` | Default `Active` |
 | `Renewal_Status` | Dropdown: `Not Due`, `Notice Sent`, `Renewed`, `Declined` | Default `Not Due` |
 | `Renewal_Notice_Sent_On` | Date-Time | Set by the renewal workflow |
-| `Renewed_From` | Lookup to Contracts | Links a renewal to the contract it replaces |
+| `Renewed_From` | Lookup to Contracts | Links a renewal to the contract it replaces. Add it after the form is saved (it looks up its own form). |
+| `Add_On_To` | Lookup to Contracts | Set by the **Add cabin** button: a cabin taken mid-agreement gets its own contract and term, linked to the contract it was added to. Add it after the form is saved. |
 | `Contract_Doc_URL` | URL | Reserved for contract generation (later phase) |
 | `Terminated_On` | Date | |
 | `Notes` | Multi line | |
@@ -61,7 +62,7 @@ from the dates every time, so they never go stale.
 
 ## 4. Form `Contract_Cabins`
 
-One row per cabin per contract. Report link name: `All_Contract_Cabins`.
+One row per cabin per contract. Report link name: `Contract_Cabins_Report`. Create `Contracts` first, since `Contract` looks it up.
 
 | Field link name | Type | Notes |
 | --- | --- | --- |
@@ -69,6 +70,13 @@ One row per cabin per contract. Report link name: `All_Contract_Cabins`.
 | `Inventory_Items` | Lookup to Inventory Items | Required |
 | `Seats` | Number | |
 | `Monthly_Price` | Currency / Decimal | |
+
+### Cabins added mid-agreement
+
+A client who takes another cabin during their agreement gets a **new contract** for that cabin, with its own
+start date, end date, price and renewal cycle, using **Add cabin** on the original contract's row. The new
+contract is linked back through `Add_On_To`; the original is not changed. Each contract gets its own 30-day
+renewal email, because the terms differ. Renewing an add-on keeps it linked to the contract it was added to.
 
 ## 5. Which items count as cabins
 
@@ -142,6 +150,8 @@ The code has been tested against a mock of Creator's API, not the live account. 
    floor plan with the company name.
 3. Try to create an overlapping contract for the same cabin. It should be refused.
 4. Edit it (change the price), renew it, then terminate the renewal.
+   Then use **Add cabin** on a contract, pick a different cabin with its own dates, and check the new contract
+   shows "Add-on to DC-…" while the original shows "Add-ons: DC-…" and is unchanged.
 5. On the floor plan's **Bookings** tab, edit and cancel a throwaway booking. This confirms the update/delete
    calls and the scopes in section 2.
 6. Run the renewal schedule against a test contract ending in about 30 days and confirm the email and CC.

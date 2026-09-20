@@ -95,7 +95,8 @@ function shapeContract(c, rawLines, itemsById, today) {
     renewal_status:         c.Renewal_Status || 'Not Due',
     renewal_notice_sent_on: text(c.Renewal_Notice_Sent_On),
     renewed_from:           lookupId(c.Renewed_From),
-    contract_doc_url:       text(c.Contract_Doc_URL),
+    add_on_to:              lookupId(c.Add_On_To),
+    contract_doc_url:      text(c.Contract_Doc_URL),
     terminated_on:          fromCreatorDate(c.Terminated_On),
     notes:                  text(c.Notes),
     cabins,
@@ -268,12 +269,14 @@ async function patchRecord(token, report, id, payload) {
   if (r.code !== 3000) throw new HttpError(500, 'Creator rejected the update', { detail: r })
 }
 
-async function insertContract(token, input, renewedFrom) {
+async function insertContract(token, input, { renewedFrom, addOnTo }) {
+  // Add_On_To is only sent when set, so nothing else depends on that field existing in Creator.
   const payload = {
     ...contractPayload(input),
     Status:         'Active',
     Renewal_Status: 'Not Due',
     ...(renewedFrom ? { Renewed_From: renewedFrom } : {}),
+    ...(addOnTo ? { Add_On_To: addOnTo } : {}),
   }
   const created = await creatorPost(`form/${cfg.CONTRACT_FORM}`, payload, token)
   if (created.code !== 3000 || !created.data || !created.data.ID) {
@@ -320,21 +323,30 @@ async function syncLines(token, state, contractId, wantedLines) {
   }
 }
 
-async function saveNewContract(req, res, token, renewedFrom) {
+// renewedFrom: the contract this one replaces (its own cabins don't count as clashes).
+// addOnTo: an existing contract this cabin contract is added to mid-agreement, under its own term.
+// verifyAddOn is off for renewals, which carry the link over from the contract they replace.
+async function saveNewContract(req, res, token, { renewedFrom = null, addOnTo = null, verifyAddOn = false } = {}) {
   const state = await loadState(token)
+  if (addOnTo && verifyAddOn) {
+    const parent = state.contracts.find(c => String(c.ID) === String(addOnTo))
+    if (!parent) throw new HttpError(404, 'The contract to add a cabin to was not found')
+    if ((parent.Status || 'Active') === 'Terminated') throw new HttpError(400, 'A terminated contract cannot have cabins added to it')
+  }
   const catalogById = {}
   buildCatalog(state.items).forEach(c => { catalogById[c.item_id] = c })
   const input = parseContractBody(req.body || {}, catalogById)
   await assertNoConflicts(token, catalogById, state, {
     lines: input.lines, start: input.fields.start_date, end: input.fields.end_date, excludeContractId: renewedFrom,
   })
-  const id = await insertContract(token, input, renewedFrom)
+  const id = await insertContract(token, input, { renewedFrom, addOnTo })
   return { id, state }
 }
 
 async function createContract(req, res, token) {
-  const { id } = await saveNewContract(req, res, token, null)
-  return res.status(200).json({ status: 'success', id, message: 'Contract created' })
+  const addOnTo = String((req.body || {}).add_on_to || '').trim() || null
+  const { id } = await saveNewContract(req, res, token, { addOnTo, verifyAddOn: true })
+  return res.status(200).json({ status: 'success', id, message: addOnTo ? 'Cabin contract added' : 'Contract created' })
 }
 
 async function renewContract(req, res, token, oldId) {
@@ -344,7 +356,8 @@ async function renewContract(req, res, token, oldId) {
   if (!old) throw new HttpError(404, 'Contract not found')
   if ((old.Status || 'Active') === 'Terminated') throw new HttpError(400, 'A terminated contract cannot be renewed')
 
-  const { id } = await saveNewContract(req, res, token, oldId)
+  // A renewed add-on stays linked to the contract it was originally added to.
+  const { id } = await saveNewContract(req, res, token, { renewedFrom: oldId, addOnTo: lookupId(old.Add_On_To) || null })
   let warning
   try {
     await patchRecord(token, cfg.CONTRACT_REPORT, oldId, { Renewal_Status: 'Renewed' })
