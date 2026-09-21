@@ -28,14 +28,17 @@ async function creatorGet(path, token) {
   return res.json()
 }
 
-// Reads every page of a report (Creator caps a page at 200). Code 3100 means "no records"; any
-// other non-3000 code is a real error (e.g. the report doesn't exist) and is thrown, not swallowed.
+// Creator reports "no records" as 3100 (nothing matched the criteria) or 9220 (the report is empty).
+const NO_RECORDS_CODES = [3100, 9220]
+
+// Reads every page of a report (Creator caps a page at 200). The no-records codes mean an empty
+// list; any other non-3000 code is a real error (e.g. the report doesn't exist) and is thrown, not swallowed.
 async function creatorGetAll(path, token, pageSize = 200, maxPages = 25) {
   const sep = path.includes('?') ? '&' : '?'
   const out = []
   for (let page = 0; page < maxPages; page++) {
     const res = await creatorGet(`${path}${sep}from=${page * pageSize + 1}&limit=${pageSize}`, token)
-    if (res.code && res.code !== 3000 && res.code !== 3100) {
+    if (res.code && res.code !== 3000 && !NO_RECORDS_CODES.includes(res.code)) {
       throw new Error(`Creator error ${res.code}: ${res.message || 'request failed'}`)
     }
     const rows = res.data || []
