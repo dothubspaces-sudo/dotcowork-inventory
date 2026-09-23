@@ -81,10 +81,18 @@ renewal email, because the terms differ. Renewing an add-on keeps it linked to t
 ## 5. Which items count as cabins
 
 A cabin can be put under contract if its **Inventory Item** has a `Cabin_Number`, its `Workspace_Type`
-contains the word "cabin" (e.g. `Private Cabin`), and it is not one of the hourly spaces (C-23, C-24, C-25,
-Training Room, Auditorium). Meeting rooms, the board room, the training room and the auditorium can never be
-put under a contract. Please confirm the real `Workspace_Type` values in Zoho; if the cabins use a different
-word, tell us and we will adjust `CABIN_TYPE_PATTERN` in `lib/config.js`.
+contains the word "cabin" (e.g. `Private Cabin`), it is not one of the hourly spaces (C-23, C-24, C-25,
+Training Room, Auditorium), and its number or label does not contain "meeting", "board", "conference",
+"training" or "auditorium".
+
+In the current inventory every item, meeting rooms and the auditorium included, has `Workspace_Type` =
+`Private Cabin`, so the type alone cannot separate them; that is why the name check exists. If a new
+meeting room or event space is added under a name that doesn't contain one of those words, add it to
+`HOURLY_SPACES` (or the name pattern) in `lib/config.js`.
+
+The Contracts tab reads the location by the name Creator gives it (`tidel-omr` for Tharamani) and shows
+"Tharamani" on screen. If no cabins are found, the tab prints what it did read (how many inventory items,
+how many had a Cabin Number, which Workspace Types, which fields) so the cause is visible.
 
 ## 6. Renewal reminders and overdue alerts (two Creator schedules)
 

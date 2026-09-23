@@ -40,7 +40,20 @@ async function loadState(token) {
 
 function isLeasableCabin(item) {
   const number = item.Cabin_Number
-  return !!number && !cfg.HOURLY_SPACES.has(number) && cfg.CABIN_TYPE_PATTERN.test(String(item.Workspace_Type || ''))
+  if (!number || cfg.HOURLY_SPACES.has(number)) return false
+  if (cfg.NON_CABIN_NAME_PATTERN.test(`${number} ${item.Unit_Label || ''}`)) return false
+  return cfg.CABIN_TYPE_PATTERN.test(String(item.Workspace_Type || ''))
+}
+
+// When no cabin is found, say what was actually read so the cause is visible instead of guessed.
+function catalogDiagnostics(items) {
+  const distinct = fn => [...new Set(items.map(fn).filter(Boolean))].slice(0, 10)
+  return {
+    items_read:        items.length,
+    with_cabin_number: items.filter(i => i.Cabin_Number).length,
+    workspace_types:   distinct(i => text(i.Workspace_Type)),
+    fields_seen:       Object.keys(items[0] || {}).slice(0, 30),
+  }
 }
 
 function buildCatalog(items) {
@@ -167,6 +180,7 @@ async function listContracts(req, res, token) {
     contracts,
     cabins,
     summary:   summarize(contracts, cabins),
+    ...(catalogAll.length ? {} : { diagnostics: catalogDiagnostics(state.items) }),
   })
 }
 

@@ -2,7 +2,12 @@
 // closure except the CT object, and all element ids/classes are prefixed ct/ct- so nothing
 // here can touch the floor plan, bookings or meeting-room code.
 (function(){
+// This page is Tharamani's. Creator names that location by its slug ("tidel-omr"), so the first request asks for
+// "Tharamani", finds nothing by that name, and switches to whichever location matches this pattern.
 const DEFAULT_LOCATION='Tharamani';
+const DEFAULT_LOCATION_PATTERN=/tharamani|tidel/i;
+// What people see. The slug only shows when there is more than one location to tell apart.
+const place=()=>data&&data.locations.length>1?curLoc:DEFAULT_LOCATION;
 const $=n=>document.getElementById('ct'+n.charAt(0).toUpperCase()+n.slice(1));
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const inr=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0);
@@ -44,7 +49,7 @@ async function load(retriedLoc){
       return;
     }
     if(!retriedLoc&&d.locations.length&&!d.locations.some(l=>l.toLowerCase()===curLoc.toLowerCase())){
-      curLoc=d.locations[0];return load(true);
+      curLoc=d.locations.find(l=>DEFAULT_LOCATION_PATTERN.test(l))||d.locations[0];return load(true);
     }
     data=d;
     $('banner').className='';
@@ -91,7 +96,9 @@ function renderCards(){
 
 function renderOccupancy(){
   if(!data.cabins.length){
-    $('occ').innerHTML='<div class="ct-empty" style="grid-column:1/-1">No leasable cabins found for this location. Cabins are picked up from Inventory Items whose Workspace Type contains "cabin".</div>';
+    const g=data.diagnostics;
+    const seen=g?`<br/><span class="ct-sub">Read ${g.items_read} inventory items; ${g.with_cabin_number} have a Cabin Number. Workspace Types seen: ${g.workspace_types.length?esc(g.workspace_types.join(', ')):'none'}. Fields returned: ${g.fields_seen.length?esc(g.fields_seen.join(', ')):'none'}.</span>`:'';
+    $('occ').innerHTML=`<div class="ct-empty" style="grid-column:1/-1">No leasable cabins found for this location. Cabins are picked up from Inventory Items that have a Cabin Number and a Workspace Type containing "cabin" (meeting rooms, the board room, training room and auditorium are always left out).${seen}</div>`;
     return;
   }
   $('occ').innerHTML=data.cabins.map(c=>{
@@ -221,9 +228,9 @@ function openForm(mode,id,presetItemId){
   form={mode,id:c?c.id:null,excludeId:(mode==='create'||mode==='addon')?null:(c?c.id:null),cabins:{}};
   const tags={create:'New contract',edit:'Edit contract',renew:'Renew contract',addon:'Add cabin'};
   $('mTag').textContent=tags[mode];
-  $('mTitle').textContent=c?c.company_name:curLoc;
+  $('mTitle').textContent=c?c.company_name:place();
   $('mSub').textContent=mode==='renew'?'Next term — dates and cabins are prefilled from the current contract.':
-    (mode==='addon'?'Own start and end date. Set the term for the new cabin(s) below.':`${curLoc} · private cabins only`);
+    (mode==='addon'?'Own start and end date. Set the term for the new cabin(s) below.':`${place()} · private cabins only`);
   $('mSubmit').textContent=mode==='edit'?'Save changes':(mode==='renew'?'Create renewal':(mode==='addon'?'Add cabin contract':'Create contract'));
   $('mErr').textContent='';
   $('mSubmit').disabled=false;
