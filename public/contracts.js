@@ -2,12 +2,9 @@
 // closure except the CT object, and all element ids/classes are prefixed ct/ct- so nothing
 // here can touch the floor plan, bookings or meeting-room code.
 (function(){
-// This page is Tharamani's. Creator names that location by its slug ("tidel-omr"), so the first request asks for
-// "Tharamani", finds nothing by that name, and switches to whichever location matches this pattern.
-const DEFAULT_LOCATION='Tharamani';
-const DEFAULT_LOCATION_PATTERN=/tharamani|tidel/i;
-// What people see. The slug only shows when there is more than one location to tell apart.
-const place=()=>data&&data.locations.length>1?curLoc:DEFAULT_LOCATION;
+// The location is chosen once for the whole page (the header dropdown) and handed in through CT.setLocation.
+// curLoc is the location's slug, which is what the API filters on; curLabel is what people see.
+const place=()=>curLabel;
 const $=n=>document.getElementById('ct'+n.charAt(0).toUpperCase()+n.slice(1));
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const inr=n=>new Intl.NumberFormat('en-IN',{style:'currency',currency:'INR',maximumFractionDigits:0}).format(n||0);
@@ -16,7 +13,7 @@ const fmtDate=iso=>iso?new Date(iso+'T00:00:00').toLocaleDateString('en-GB',{day
 const addDays=(iso,n)=>{const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+n);return ymd(d);};
 const diffDays=(a,b)=>Math.round((new Date(b+'T00:00:00')-new Date(a+'T00:00:00'))/86400000);
 
-let data=null,curLoc=DEFAULT_LOCATION,filter='current',query='',form=null;
+let data=null,curLoc='',curLabel='',filter='current',query='',form=null;
 
 const FILTERS=[
   ['current','Current',c=>c.phase==='active'||c.phase==='expiring'],
@@ -37,19 +34,20 @@ function notify(msg,kind){
 }
 
 /* ── loading ── */
-async function load(retriedLoc){
+async function load(){
+  if(!curLoc)return;
   $('gate').style.display='none';
+  const at=curLoc;
   try{
-    const r=await apiFetch('/api/contracts?location='+encodeURIComponent(curLoc));
+    const r=await apiFetch('/api/contracts?location='+encodeURIComponent(at));
     if(r.status===401){showGate();return;}
     const d=await r.json();
+    // Ignore a slow answer for a location the user has already switched away from.
+    if(at!==curLoc)return;
     if(!r.ok||d.status!=='success'){
       $('content').style.display='none';
       notify((d.error||'Could not load contracts')+'. If the Contracts forms have not been created in Zoho Creator yet, see docs/zoho-setup.md.','err');
       return;
-    }
-    if(!retriedLoc&&d.locations.length&&!d.locations.some(l=>l.toLowerCase()===curLoc.toLowerCase())){
-      curLoc=d.locations.find(l=>DEFAULT_LOCATION_PATTERN.test(l))||d.locations[0];return load(true);
     }
     data=d;
     $('banner').className='';
@@ -69,15 +67,17 @@ async function signOut(){
   data=null;showGate();
 }
 
-function changeLocation(v){curLoc=v;load();}
+// Called by the page whenever the location changes. It only reloads if this tab is the one showing.
+function setLocation(slug,label){
+  curLoc=slug;curLabel=label;data=null;
+  const view=document.getElementById('contractsView');
+  if(view&&view.style.display!=='none')load();
+}
 function onSearch(v){query=v.trim().toLowerCase();renderTable();}
 
 /* ── rendering ── */
 function render(){
   $('content').style.display='';
-  const locs=data.locations.length?data.locations:[curLoc];
-  $('locSel').style.display=locs.length>1?'':'none';
-  $('locSel').innerHTML=locs.map(l=>`<option ${l.toLowerCase()===curLoc.toLowerCase()?'selected':''}>${esc(l)}</option>`).join('');
   renderCards();renderOccupancy();renderChips();renderTable();
 }
 
@@ -103,6 +103,13 @@ function renderOccupancy(){
   }
   $('occ').innerHTML=data.cabins.map(c=>{
     let cls='',line='Vacant';
+    if(c.open_workspace){
+      // Shared space: several clients hold seats, so show seats leased rather than one client.
+      cls=c.state==='occupied'?'ct-cab-ok':(c.state==='partial'?'ct-cab-part':'');
+      line=c.seats_leased?`${c.seats_leased} / ${c.capacity} seats leased`:'All seats free';
+      const act=c.contract?`CT.openForm('edit','${esc(c.contract.contract_id)}')`:`CT.openForm('create',null,'${esc(c.item_id)}')`;
+      return `<button class="ct-cab ${cls}" onclick="${act}"><b>${esc(c.cabin_number)}</b><small>Open workspace · ${c.capacity} seats</small><small>${line}</small></button>`;
+    }
     if(c.state==='occupied'){
       const d=c.contract.days_to_expiry;
       cls=d<=7?'ct-cab-bad':(d<=30?'ct-cab-warn':'ct-cab-ok');
@@ -273,6 +280,8 @@ function closeForm(){$('ovl').classList.remove('open');form=null;}
 function conflictFor(cabin){
   const s=$('fStart').value,e=$('fEnd').value;
   if(!s||!e)return null;
+  // Shared open workspace can overlap other contracts; the server checks the seats still fit.
+  if(cabin.open_workspace)return null;
   return data.contracts.find(c=>c.id!==form.excludeId&&c.phase!=='terminated'&&
     c.cabins.some(l=>l.item_id===cabin.item_id)&&c.start_date<=e&&c.end_date>=s)||null;
 }
@@ -285,7 +294,7 @@ function renderPicker(){
     const clash=conflictFor(c);
     const cls=sel?'sel':(clash?'dis':'');
     const title=clash?`title="${esc('Under contract '+(clash.contract_no||clash.company_name))}"`:'';
-    return `<button type="button" class="ct-pchip ${cls}" ${title} data-id="${esc(c.item_id)}" ${clash&&!sel?'disabled':''}>${esc(c.cabin_number)} · ${c.seats}</button>`;
+    return `<button type="button" class="ct-pchip ${cls}" ${title} data-id="${esc(c.item_id)}" ${clash&&!sel?'disabled':''}>${esc(c.cabin_number)} · ${c.capacity||c.seats}${c.open_workspace?' seats (shared)':''}</button>`;
   }).join('')||'<span class="ct-sub">No leasable cabins found.</span>';
 
   const selHead=Object.keys(form.cabins).length?'<div class="ct-sel-row ct-sel-hdr"><span>Cabin</span><span>Seats</span><span>Monthly price (₹)</span><span></span></div>':'';
@@ -296,7 +305,7 @@ function renderPicker(){
     return `<div>
       <div class="ct-sel-row" data-id="${esc(id)}">
         <b>${esc(cabin.cabin_number)}</b>
-        <input type="number" min="1" step="1" value="${esc(v.seats)}" data-f="seats" placeholder="Seats"/>
+        <input type="number" min="1" ${cabin.open_workspace&&cabin.capacity?`max="${cabin.capacity}"`:''} step="1" value="${esc(v.seats)}" data-f="seats" placeholder="Seats"/>
         <input type="number" min="0" step="1" value="${esc(v.price)}" data-f="price" placeholder="Monthly price ₹"/>
         <button type="button" class="rm" data-rm="${esc(id)}">✕</button>
       </div>
@@ -364,7 +373,7 @@ $('selRows').addEventListener('click',e=>{
 $('ovl').addEventListener('click',e=>{if(e.target.id==='ctOvl')closeForm();});
 
 window.CT={
-  show:load,load,changeLocation,onSearch,setFilter,openForm,closeForm,submitForm,
+  show:load,load,setLocation,onSearch,setFilter,openForm,closeForm,submitForm,
   terminate,setRenewal,confirmThenRun,signOut,renderPicker
 };
 })();

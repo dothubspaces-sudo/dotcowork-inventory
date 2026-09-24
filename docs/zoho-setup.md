@@ -78,21 +78,33 @@ start date, end date, price and renewal cycle, using **Add cabin** on the origin
 contract is linked back through `Add_On_To`; the original is not changed. Each contract gets its own 30-day
 renewal email, because the terms differ. Renewing an add-on keeps it linked to the contract it was added to.
 
-## 5. Which items count as cabins
+## 5. Locations, and which spaces are what
 
-A cabin can be put under contract if its **Inventory Item** has a `Cabin_Number`, its `Workspace_Type`
-contains the word "cabin" (e.g. `Private Cabin`), it is not one of the hourly spaces (C-23, C-24, C-25,
-Training Room, Auditorium), and its number or label does not contain "meeting", "board", "conference",
-"training" or "auditorium".
+The page has one location selector; Floor Plan, Bookings and Contracts all show only the chosen location. The list
+comes from **Location_Master** (active rows only), and each Inventory Item belongs to a location through its
+`Location_Master` field. **Cabin numbers only need to be unique within a location**: a second site can have its own
+`C-01`. The app tells spaces apart by the Inventory Item, never by cabin number alone.
 
-In the current inventory every item, meeting rooms and the auditorium included, has `Workspace_Type` =
-`Private Cabin`, so the type alone cannot separate them; that is why the name check exists. If a new
-meeting room or event space is added under a name that doesn't contain one of those words, add it to
-`HOURLY_SPACES` (or the name pattern) in `lib/config.js`.
+What a space is comes from its **`Workspace_Type`**:
 
-The Contracts tab reads the location by the name Creator gives it (`tidel-omr` for Tharamani) and shows
-"Tharamani" on screen. If no cabins are found, the tab prints what it did read (how many inventory items,
-how many had a Cabin Number, which Workspace Types, which fields) so the cause is visible.
+| Workspace Type contains | Treated as | Used for |
+| --- | --- | --- |
+| `Private Cabin` (or "cabin") | cabin | Contracts; can also take short bookings |
+| `Open Workspace` | shared open workspace | Contracts, leased **by seats** (several clients can share it until the seats run out); its `Quantity` is its seat count |
+| `Meeting`, `Board`, `Conference`, `Training`, `Auditorium`, `Event` | hourly room | booked by the hour (9 AM to 9 PM, 30-minute slots); never under a contract |
+
+Set this correctly on **every** Inventory Item. Until a location's types are corrected, the app also recognises
+the current meeting spaces by name (C-23, C-24, C-25, Training Room, Auditorium, and anything named meeting, board,
+conference, training or auditorium) so nothing breaks in the meantime. If a space is still classified wrongly,
+change its Workspace Type; the rules live in [`lib/spaces.js`](../lib/spaces.js).
+
+Only Tharamani has a floor-plan drawing. Other locations show an automatic grid of their spaces (cabins and open
+workspace, then meeting and event rooms) built from their inventory. To get a location on the page, add its
+Inventory Items with that location selected; nothing else is needed. If a location is missing from the selector, check
+its `Status` is `Active` in Location_Master.
+
+If no leasable space is found for a location, the Contracts tab prints what it did read (how many inventory items,
+how many had a name, which Workspace Types, which fields) so the cause is visible.
 
 ## 6. Renewal reminders and overdue alerts (two Creator schedules)
 

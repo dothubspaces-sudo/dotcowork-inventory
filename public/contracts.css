@@ -104,3 +104,5 @@
   .ct-row2{grid-template-columns:1fr}
   .ct-sel-row{grid-template-columns:70px 1fr 1fr 30px}
 }
+
+.ct-cab-part{border-color:var(--info-bd);background:var(--info-bg)}

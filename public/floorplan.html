@@ -8,7 +8,7 @@
 
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
 
-<title>DOT Cowork · Tharamani</title>
+<title>DOT Cowork</title>
 
 <style>
 
@@ -63,6 +63,38 @@ html,body{font-family:var(--f);background:var(--bg);color:var(--txt);min-height:
 .hdiv{width:1px;height:16px;background:var(--border2)}
 
 .hloc{font-size:13px;font-weight:600;color:var(--txt)}
+
+.loc-select{padding:6px 28px 6px 12px;border-radius:50px;border:1px solid var(--border2);background:var(--surface);font-size:13px;font-weight:600;font-family:var(--f);color:var(--txt);cursor:pointer;outline:none}
+
+.loc-select:focus{border-color:var(--brand)}
+
+/* AUTO-BUILT GRID: locations without a floor-plan drawing */
+
+.gp-sec{margin-bottom:1.75rem}
+
+.gp-h{font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;color:var(--txt3);margin-bottom:.9rem}
+
+.gp-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+
+.gp-card{text-align:left;font-family:var(--f);border-radius:var(--radius-sm);border:1.5px solid var(--avail-bd);background:var(--avail-bg);padding:12px 13px;cursor:pointer;min-height:96px;color:var(--txt)}
+
+.gp-card:hover:not(:disabled){box-shadow:var(--shadow)}
+
+.gp-card.oc{border-color:var(--occ-bd);background:var(--occ-bg)}
+
+.gp-card:disabled{cursor:default}
+
+.gp-name{font-size:14px;font-weight:700}
+
+.gp-meta{font-size:11px;color:var(--txt2);margin-top:2px}
+
+.gp-status{font-size:11px;font-weight:700;margin-top:6px;color:var(--avail)}
+
+.gp-card.oc .gp-status{color:var(--occ)}
+
+.gp-who{font-size:11px;color:var(--txt);margin-top:3px;line-height:1.35}
+
+.gp-empty{padding:2.5rem 1rem;text-align:center;color:var(--txt3);font-size:13px}
 
 .hsub{font-size:11px;color:var(--txt3);margin-top:1px}
 
@@ -459,7 +491,9 @@ svg#fp{display:block;width:100%;height:auto}
 
     <div>
 
-      <div class="hloc" id="hloc">Tharamani · Floor Plan</div>
+      <div class="hloc" id="hloc"></div>
+
+      <select class="loc-select" id="locSel" style="display:none" onchange="changeLocation(this.value)"></select>
 
     </div>
 
@@ -579,9 +613,13 @@ svg#fp{display:block;width:100%;height:auto}
 
   </div>
 
+  <!-- AUTO-BUILT GRID (shown instead of the drawing for locations that don't have one) -->
+
+  <div id="gridView" style="display:none"></div>
+
   <!-- FLOOR PLAN -->
 
-  <div class="fcard">
+  <div class="fcard" id="planCard">
 
     <div class="flabel"><span class="flabel-dot"></span>Tharamani · Ground Floor</div>
 
@@ -731,7 +769,7 @@ svg#fp{display:block;width:100%;height:auto}
 
   <!-- EXTERNAL SPACES -->
 
-  <div class="extsec">
+  <div class="extsec" id="extSec">
 
     <div class="extlbl"><span class="flabel-dot"></span>External spaces · within premises</div>
 
@@ -822,8 +860,6 @@ svg#fp{display:block;width:100%;height:auto}
     <div id="ctBanner"></div>
 
     <div class="ct-toolbar">
-
-      <select class="ct-select" id="ctLocSel" style="display:none" onchange="CT.changeLocation(this.value)"></select>
 
       <input class="ct-search" id="ctSearch" type="search" placeholder="Search company, contact, cabin…" oninput="CT.onSearch(this.value)"/>
 
@@ -1137,11 +1173,22 @@ const EXT={
 
 };
 
+// Only used until the first availability response says which spaces are hourly.
 const HOURLY_LABELS=new Set(['C-23','C-24','C-25','Training Room','Auditorium']);
 const SLOT_START_MIN=9*60, SLOT_END_MIN=21*60, SLOT_STEP=30; // 9 AM – 9 PM, 30-min slots
-function isHourly(label){return HOURLY_LABELS.has(label);}
+// The server decides (from the space's Workspace Type); the fixed list is only a fallback.
+function isHourly(label){const d=live[label];return d?!!d.hourly:HOURLY_LABELS.has(label);}
 
 let live={}, sel=null;
+
+// ── LOCATION ──
+// A location is picked once for the whole page. Only locations with a drawing show the SVG floor plan;
+// the others get an auto-built grid from their inventory.
+const PLAN_LOCATIONS=new Set(['tidel-omr']);
+const FALLBACK_LOCATION={slug:'tidel-omr',label:'Tharamani',name:'Tidel Park',subtitle:'Tharamani, Chennai'};
+let LOCATIONS=[], LOC='', LOC_LABEL='';
+const hasPlan=()=>PLAN_LOCATIONS.has(LOC);
+const locQ=()=>'&location='+encodeURIComponent(LOC);
 let slotDay=null, slotSelStart=null, slotSelEnd=null, slotCtx=null;
 
 // ── DATE RANGE STATE ──
@@ -1366,13 +1413,16 @@ async function load(){
 
   startL();
 
+  const at=LOC;
+
   try{
 
-    const r=await fetch(`/api/availability?date=${dateParam}&end_date=${endParam}`);
+    const r=await fetch(`/api/availability?date=${dateParam}&end_date=${endParam}${locQ()}`);
 
     const d=await r.json();
 
-    if(d.status==='success'){
+    // Ignore a slow answer for a location the user has already switched away from.
+    if(d.status==='success'&&at===LOC){
 
       live={};(d.spaces||[]).forEach(s=>{live[s.cabin_number]=s;});
 
@@ -1388,20 +1438,25 @@ async function load(){
 
 function applyAll(){
   let av=0,oc=0;
-  Object.keys(CABINS).forEach(n=>{
-    const num=parseInt(n);
-    const cn=CABINS[num].label;
-    const d=live[cn];const isOc=d&&d.status==='Booked';
-    isOc?oc++:av++;setCabin(num,isOc,d);
-  });
+  if(hasPlan()){
+    Object.keys(CABINS).forEach(n=>{
+      const num=parseInt(n);
+      const cn=CABINS[num].label;
+      const d=live[cn];const isOc=d&&d.status==='Booked';
+      isOc?oc++:av++;setCabin(num,isOc,d);
+    });
 
-  Object.keys(EXT).forEach(k=>{
+    Object.keys(EXT).forEach(k=>{
 
-    const sp=EXT[k],d=live[sp.key];const isOc=d&&d.status==='Booked';
+      const sp=EXT[k],d=live[sp.key];const isOc=d&&d.status==='Booked';
 
-    isOc?oc++:av++;setExt(k,isOc,d);
+      isOc?oc++:av++;setExt(k,isOc,d);
 
-  });
+    });
+  }else{
+    Object.values(live).forEach(d=>{if(d.cabin_number)d.status==='Booked'?oc++:av++;});
+    renderGrid();
+  }
 
   document.getElementById('pav').textContent=av+' available';
 
@@ -1501,6 +1556,100 @@ function setExt(key,isOc,data){
 
 }
 
+// ── AUTO-BUILT GRID ──
+
+function renderGrid(){
+  const box=document.getElementById('gridView');
+  const spaces=Object.values(live).filter(s=>s.cabin_number)
+    .sort((a,b)=>a.cabin_number.localeCompare(b.cabin_number,undefined,{numeric:true}));
+  if(!spaces.length){
+    box.innerHTML='<div class="gp-empty">No spaces have been added for this location yet. Add them as Inventory Items in Zoho with this location set.</div>';
+    return;
+  }
+  const section=(title,list)=>list.length?`<div class="gp-sec"><div class="gp-h">${title}</div><div class="gp-grid">${list.map(gridCard).join('')}</div></div>`:'';
+  box.innerHTML=section('Cabins &amp; open workspace',spaces.filter(s=>!s.hourly))+section('Meeting &amp; event rooms',spaces.filter(s=>s.hourly));
+}
+
+function gridCard(s){
+  const booked=s.status==='Booked';
+  let who='';
+  if(s.hourly){
+    const slots=(s.slots||[]).filter(x=>x.date===(rangeStart||tod()));
+    if(slots.length)who=escHtml(slotWho(slots[0]))+(slotWhen(slots[0])?'<br>'+escHtml(slotWhen(slots[0])):'')+(slots.length>1?` <b>+${slots.length-1} more</b>`:'');
+  }else if(s.open_workspace){
+    who=`${s.seats_leased||0} / ${s.capacity} seats leased`;
+  }else if(booked&&s.client){
+    who=escHtml(s.client)+(s.booking_end?'<br>until '+escHtml(fmtFull(s.booking_end)):'');
+  }
+  const seats=Number(s.capacity)||0;
+  // Open workspace is leased by seats under Contracts, so it isn't booked from here.
+  const clickable=s.hourly||(!booked&&!s.open_workspace);
+  const status=s.open_workspace?(booked?'● Full':'● Available'):(booked?'● Booked':'● Available');
+  return `<button type="button" class="gp-card ${booked?'oc':''}" data-name="${escHtml(s.cabin_number)}" ${clickable?'':'disabled'}>
+    <div class="gp-name">${escHtml(s.cabin_number)}</div>
+    <div class="gp-meta">${seats?seats+' seat'+(seats===1?'':'s'):''}${s.hourly?' · by the hour':''}</div>
+    <div class="gp-status">${status}</div>
+    <div class="gp-who">${who}</div>
+  </button>`;
+}
+
+function gridClick(name){
+  const d=live[name];if(!d)return;
+  const data={seats:d.capacity,type:d.workspace_type||name,item_id:d.item_id};
+  if(d.hourly)openSlotModal(name,data,name);
+  else if(d.status!=='Booked')openModal(name,data);
+}
+
+document.getElementById('gridView').addEventListener('click',e=>{
+  const b=e.target.closest('.gp-card');
+  if(b&&!b.disabled)gridClick(b.dataset.name);
+});
+
+// ── LOCATION SWITCHING ──
+
+function applyLocation(l,reload){
+  LOC=l.slug;LOC_LABEL=l.label;
+  try{localStorage.setItem('dc_loc',LOC);}catch(e){}
+  try{history.replaceState(null,'',location.pathname+'?loc='+encodeURIComponent(LOC)+location.hash);}catch(e){}
+  document.title='DOT Cowork · '+LOC_LABEL;
+  document.getElementById('locSel').value=LOC;
+  document.getElementById('hloc').textContent=LOC_LABEL;
+  const plan=hasPlan();
+  document.getElementById('planCard').style.display=plan?'':'none';
+  document.getElementById('extSec').style.display=plan?'':'none';
+  document.getElementById('gridView').style.display=plan?'none':'';
+  CT.setLocation(LOC,LOC_LABEL);
+  if(reload){
+    live={};
+    if(plan)applyAll();else document.getElementById('gridView').innerHTML='<div class="gp-empty">Loading…</div>';
+    load();
+    if(document.getElementById('bookingsView').style.display!=='none')loadBookingsMonth();
+  }
+}
+
+function changeLocation(slug){
+  const l=LOCATIONS.find(x=>x.slug===slug);
+  if(l)applyLocation(l,true);
+}
+
+async function initLocations(){
+  try{
+    const r=await fetch('/api/locations');const d=await r.json();
+    if(d.status==='success'&&d.locations.length)LOCATIONS=d.locations;
+  }catch(e){console.error(e);}
+  // If the list can't be loaded the page still works, as the single Tharamani location.
+  if(!LOCATIONS.length)LOCATIONS=[FALLBACK_LOCATION];
+  let saved=null;try{saved=localStorage.getItem('dc_loc');}catch(e){}
+  const asked=new URLSearchParams(location.search).get('loc');
+  const pick=[asked,saved,FALLBACK_LOCATION.slug].map(s=>LOCATIONS.find(l=>l.slug===s)).find(Boolean)||LOCATIONS[0];
+  const dd=document.getElementById('locSel');
+  dd.innerHTML=LOCATIONS.map(l=>`<option value="${escHtml(l.slug)}">${escHtml(l.label)}</option>`).join('');
+  // One location: just show its name. Several: show the dropdown.
+  dd.style.display=LOCATIONS.length>1?'':'none';
+  document.getElementById('hloc').style.display=LOCATIONS.length>1?'none':'';
+  applyLocation(pick,false);
+}
+
 // ── BOOKINGS TAB ──
 
 const TAB_VIEWS={floorplan:'floorPlanView',bookings:'bookingsView',contracts:'contractsView'};
@@ -1512,7 +1661,6 @@ function showTab(tab){
     document.getElementById(TAB_VIEWS[k]).style.display=k===tab?'':'none';
     document.getElementById(TAB_BUTTONS[k]).classList.toggle('active',k===tab);
   });
-  document.getElementById('hloc').textContent='Tharamani · '+({floorplan:'Floor Plan',bookings:'Bookings',contracts:'Contracts'})[tab];
   // The check-in/out picker only applies to the floor plan and bookings views.
   document.getElementById('ctrlBar').style.display=tab==='contracts'?'none':'';
   try{history.replaceState(null,'',tab==='floorplan'?location.pathname+location.search:'#'+tab);}catch(e){}
@@ -1541,8 +1689,10 @@ async function loadBookingsMonth(retried){
   const {start,end}=monthRange(bkMonthAnchor);
   bkNeedsLogin=false;
   try{
-    const r=await fetch(`/api/availability?date=${start}&end_date=${end}`);
+    const at=LOC;
+    const r=await fetch(`/api/availability?date=${start}&end_date=${end}${locQ()}`);
     const d=await r.json();
+    if(at!==LOC)return;
     if(d.status==='success'&&!d.authed){
       if(!retried&&await promptLogin())return loadBookingsMonth(true);
       bkNeedsLogin=true;
@@ -1563,8 +1713,9 @@ function shiftBkMonth(dir){
 }
 
 function bookingRowFromRaw(b){
-  const hourly=isHourly(b.cabin_number);
-  const cabinEntry=Object.values(CABINS).find(c=>c.label===b.cabin_number);
+  const hourly=typeof b.hourly==='boolean'?b.hourly:isHourly(b.cabin_number);
+  // CABINS describes Tharamani's drawing only; other locations' spaces are labelled by what the server sent.
+  const cabinEntry=hasPlan()?Object.values(CABINS).find(c=>c.label===b.cabin_number):null;
   const type=cabinEntry?cabinEntry.type:b.cabin_number;
   const hasTime=!!(b.start_time&&b.end_time);
   let when;
@@ -1576,7 +1727,7 @@ function bookingRowFromRaw(b){
     when=b.booking_start===b.booking_end?fmtFull(b.booking_start):`${fmtFull(b.booking_start)} → ${fmtFull(b.booking_end)}`;
   }
   return {
-    id:b.id,space:b.cabin_number,type,client:b.client||'—',purpose:b.purpose||'—',pax:b.pax||0,
+    id:b.id,item_id:b.item_id||'',space:b.cabin_number,type,client:b.client||'—',purpose:b.purpose||'—',pax:b.pax||0,
     when,hourly,date:b.booking_start,start:b.start_time,end:b.end_time,
     booking_start:b.booking_start,booking_end:b.booking_end,
     sortKey:b.booking_start+'_'+(b.start_time||'')
@@ -1621,7 +1772,7 @@ function renderBookingsTable(){
 function openEditFromRow(id){
   const row=bookingsById[id];
   if(!row)return;
-  const cabinEntry=Object.values(CABINS).find(c=>c.label===row.space);
+  const cabinEntry=hasPlan()?Object.values(CABINS).find(c=>c.label===row.space):null;
   const data=cabinEntry||{seats:row.pax,type:row.type};
   const timeCtx=row.hourly?{date:row.date,startTime:row.start,endTime:row.end}:null;
   openModal(row.space,data,timeCtx,row);
@@ -1746,11 +1897,13 @@ document.addEventListener('mousemove',e=>{if(ttEl.style.display==='block')mv(e);
 
 function openModal(title,data,timeCtx,editRecord){
 
-  sel={cabinNum:title,type:data.type,seats:data.seats,timeCtx:timeCtx||null,editingId:editRecord?editRecord.id:null};
+  // The space is identified by its item id (cabin numbers repeat across locations); the number is kept for display.
+  const itemId=(editRecord&&editRecord.item_id)||(live[title]&&live[title].item_id)||data.item_id||'';
+  sel={cabinNum:title,itemId,type:data.type,seats:data.seats,timeCtx:timeCtx||null,editingId:editRecord?editRecord.id:null};
 
   document.getElementById('mtitle').textContent=title;
 
-  document.getElementById('msubt').textContent=(data.type||title)+' · Tharamani';
+  document.getElementById('msubt').textContent=(data.type||title)+' · '+LOC_LABEL;
 
   document.getElementById('f-space').value=title;
 
@@ -1844,7 +1997,7 @@ async function submitBooking(){
 
   btn.disabled=true;btn.textContent='Saving…';msg.textContent='';
 
-  const body={cabin_number:sel.cabinNum,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0};
+  const body={item_id:sel.itemId||undefined,cabin_number:sel.cabinNum,location:LOC,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0};
 
   if(sel.timeCtx){body.start_time=sel.timeCtx.startTime;body.end_time=sel.timeCtx.endTime;}
 
@@ -1888,7 +2041,7 @@ function openSlotModal(title,data,apiKey){
   slotDay=rangeStart||tod();
   slotSelStart=null;slotSelEnd=null;
   document.getElementById('slotTitle').textContent=title;
-  document.getElementById('slotSubt').textContent=(data.type||title)+' · Tharamani';
+  document.getElementById('slotSubt').textContent=(data.type||title)+' · '+LOC_LABEL;
   renderSlotGrid();
   document.getElementById('ovlSlots').classList.add('open');ht();
 }
@@ -1907,7 +2060,7 @@ async function shiftSlotDay(dir){
 
 async function loadSlotDay(){
   try{
-    const r=await fetch(`/api/availability?date=${slotDay}&end_date=${slotDay}`);
+    const r=await fetch(`/api/availability?date=${slotDay}&end_date=${slotDay}${locQ()}`);
     const d=await r.json();
     if(d.status==='success'){
       slotCtx.dayData=(d.spaces||[]).find(s=>s.cabin_number===slotCtx.apiKey)||null;
@@ -2050,8 +2203,11 @@ function updateWorkingDays() {
 
 // ── INIT ──
 
-setToday();
-if(location.hash==='#bookings'||location.hash==='#contracts')showTab(location.hash.slice(1));
+// The location has to be known before anything is fetched, so start-up waits for it.
+initLocations().then(()=>{
+  setToday();
+  if(location.hash==='#bookings'||location.hash==='#contracts')showTab(location.hash.slice(1));
+});
 
 </script>
 

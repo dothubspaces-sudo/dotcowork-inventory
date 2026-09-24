@@ -158,6 +158,7 @@ module.exports = async function handler(req, res) {
         item_id:       String(item.ID),
         cabin_number:  nameOf(item),
         location:      locationOf(item).slug,
+        hourly:        classify(item) === 'hourly',
         client:        b.Client_Name  || "",
         purpose:       b.Purpose      || "",
         pax:           b.Total_Pax    || 0,
