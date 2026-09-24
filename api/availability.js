@@ -1,11 +1,14 @@
 const { isAuthed } = require('../lib/auth.js');
 const { getAccessToken, creatorGetAll } = require('./zoho.js');
 const { toCreatorDate, fromCreatorDate, isISODate } = require('../lib/dates.js');
+const { classify, isOpenWorkspace, capacityOf, nameOf, locationOf } = require('../lib/spaces.js');
 const cfg = require('../lib/config.js');
 
-const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium']);
 const BUSINESS_START_MIN = 9 * 60;  // 9 AM
 const BUSINESS_END_MIN   = 21 * 60; // 9 PM
+
+const refId = v => (v && typeof v === 'object') ? String(v.ID || '') : (v == null ? '' : String(v));
+const refName = v => (v && typeof v === 'object') ? String(v.display_value || v.Cabin_Number || '') : (v == null ? '' : String(v));
 
 module.exports = async function handler(req, res) {
   res.setHeader("Cache-Control", "private, no-store");
@@ -14,10 +17,13 @@ module.exports = async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Headers", "Content-Type");
   if (req.method === "OPTIONS") return res.status(200).end();
 
-  // Accept ?date=YYYY-MM-DD&end_date=YYYY-MM-DD
+  // Accept ?date=YYYY-MM-DD&end_date=YYYY-MM-DD&location=<slug>
   // If only date passed, end_date defaults to date (single day check)
   const startDate = req.query.date     || new Date().toISOString().split("T")[0];
   const endDate   = req.query.end_date || startDate;
+  // Cabin numbers repeat across locations, so a space is identified by its item ID and the
+  // location narrows everything (items, bookings, contracts) to one site. Only compared in JS.
+  const wantedLocation = String(req.query.location || "").trim().toLowerCase();
 
   // These go straight into Creator criteria strings, so only accept real ISO dates.
   if (!isISODate(startDate) || !isISODate(endDate)) {
@@ -47,18 +53,38 @@ module.exports = async function handler(req, res) {
       bookingsRes.json(),
     ]);
 
-    const items    = itemsData.data    || [];
+    const items = (itemsData.data || []).filter(i =>
+      !wantedLocation || locationOf(i).slug.toLowerCase() === wantedLocation
+    );
     const bookings = bookingsData.data || [];
-    const contractBooked = mapContractOccupancy(contractRows, items);
+    const itemById = {};
+    const itemByName = {};
+    items.forEach(i => {
+      itemById[String(i.ID)] = i;
+      const n = nameOf(i);
+      if (n && !itemByName[n]) itemByName[n] = i;
+    });
+    const contractBooked = mapContractOccupancy(contractRows, itemById);
 
-    // Step 3 — build booked map keyed by Cabin_Number (last-overlap wins, matches prior behavior)
+    // A booking belongs to the item it points at. Only when Creator gave no item ID at all is the cabin's
+    // display name used (within this location); a booking for another location's item must never match by name.
+    const itemForBooking = b => {
+      const link = b.Inventory_Items;
+      const id = (link && typeof link === 'object') ? String(link.ID || '') : '';
+      return id ? (itemById[id] || null) : (itemByName[refName(link)] || null);
+    };
+
+    // Step 3 — build booked map keyed by item ID (last-overlap wins, matches prior behavior)
     // and, for hourly spaces, collect every overlapping booking so slot-level availability can be derived
     const bookedMap = {};
-    const bookingsByCabin = {};
+    const bookingsByItem = {};
+    const bookingItem = new Map();
     bookings.forEach(b => {
-      const cabinNum = b.Inventory_Items?.display_value || b.Inventory_Items?.Cabin_Number || b.Inventory_Items || "";
-      if (!cabinNum) return;
-      bookedMap[cabinNum] = {
+      const item = itemForBooking(b);
+      if (!item) return;
+      bookingItem.set(b, item);
+      const itemId = String(item.ID);
+      bookedMap[itemId] = {
         id:            b.ID || "",
         client:        b.Client_Name  || "",
         purpose:       b.Purpose      || "",
@@ -66,72 +92,81 @@ module.exports = async function handler(req, res) {
         booking_start: b.Booking_Start || "",
         booking_end:   b.Booking_End   || "",
       };
-      if (HOURLY_SPACES.has(cabinNum)) {
-        (bookingsByCabin[cabinNum] ||= []).push(b);
+      if (classify(item) === 'hourly') {
+        (bookingsByItem[itemId] ||= []).push(b);
       }
     });
 
     // Step 4 — map every inventory item with its status
     const spaces = items.map(item => {
-      const cabinNum = item.Cabin_Number || "";
+      const itemId  = String(item.ID);
+      const name    = nameOf(item);
+      const kind    = classify(item);
+      const open    = isOpenWorkspace(item);
       // A cabin under an active contract shows as occupied; contracts never cover the hourly spaces.
-      const booking  = contractBooked[cabinNum] || bookedMap[cabinNum];
+      const contract = contractBooked[itemId];
+      const booking  = contract ? contractBooking(contract, open) : bookedMap[itemId];
       const base = {
-        cabin_number:   cabinNum,
-        display_name:   item.Unit_Label     || cabinNum,
+        item_id:        itemId,
+        cabin_number:   name,
+        display_name:   item.Unit_Label     || name,
         workspace_type: item.Workspace_Type || "",
-        capacity:       item.No_of_Seats    || item.Capacity || 0,
-        location:       item.Location_Master?.display_value || "",
+        capacity:       open ? capacityOf(item) : (item.No_of_Seats || item.Capacity || 0),
+        location:       locationOf(item).slug,
+        kind,
       };
 
-      if (HOURLY_SPACES.has(cabinNum)) {
+      if (kind === 'hourly') {
         const { slots, fullyBookedEveryDay } = buildHourlySlots(
-          bookingsByCabin[cabinNum] || [], startDate, endDate
+          bookingsByItem[itemId] || [], startDate, endDate
         );
         return {
           ...base,
           hourly: true,
           status: fullyBookedEveryDay ? "Booked" : "Available",
           slots,
-          ...(booking ? {
-            id:            booking.id,
-            client:        booking.client,
-            purpose:       booking.purpose,
-            pax:           booking.pax,
-            booking_start: booking.booking_start,
-            booking_end:   booking.booking_end,
-          } : {}),
+          ...(booking ? bookingFields(booking) : {}),
+        };
+      }
+
+      // Open workspace is shared: it only shows Booked once every seat is leased.
+      if (open) {
+        const leased = contract ? contract.seatsLeased : 0;
+        return {
+          ...base,
+          open_workspace: true,
+          seats_leased:   leased,
+          status: leased > 0 && leased >= base.capacity ? "Booked" : "Available",
+          ...(booking ? bookingFields(booking) : {}),
         };
       }
 
       return {
         ...base,
         status: booking ? "Booked" : "Available",
-        ...(booking ? {
-          id:            booking.id,
-          client:        booking.client,
-          purpose:       booking.purpose,
-          pax:           booking.pax,
-          booking_start: booking.booking_start,
-          booking_end:   booking.booking_end,
-        } : {}),
+        ...(booking ? bookingFields(booking) : {}),
       };
     });
 
     // Flat, undeduplicated list of every booking overlapping the range — unlike `spaces`
     // (one status snapshot per cabin), this keeps every booking so a cabin with multiple
     // bookings in the range (e.g. across a whole month) isn't collapsed to just the last one.
-    const allBookings = bookings.map(b => ({
-      id:            b.ID || "",
-      cabin_number:  b.Inventory_Items?.display_value || b.Inventory_Items?.Cabin_Number || b.Inventory_Items || "",
-      client:        b.Client_Name  || "",
-      purpose:       b.Purpose      || "",
-      pax:           b.Total_Pax    || 0,
-      booking_start: b.Booking_Start || "",
-      booking_end:   b.Booking_End   || "",
-      start_time:    b.Start_Time    || "",
-      end_time:      b.End_Time      || "",
-    })).filter(b => b.cabin_number && b.id);
+    const allBookings = bookings.filter(b => bookingItem.has(b)).map(b => {
+      const item = bookingItem.get(b);
+      return {
+        id:            b.ID || "",
+        item_id:       String(item.ID),
+        cabin_number:  nameOf(item),
+        location:      locationOf(item).slug,
+        client:        b.Client_Name  || "",
+        purpose:       b.Purpose      || "",
+        pax:           b.Total_Pax    || 0,
+        booking_start: b.Booking_Start || "",
+        booking_end:   b.Booking_End   || "",
+        start_time:    b.Start_Time    || "",
+        end_time:      b.End_Time      || "",
+      };
+    }).filter(b => b.cabin_number && b.id);
 
     // Booking IDs are what edit/cancel act on, so they're only sent to logged-in users.
     // The floor plan itself (status, client, times) stays visible to everyone as before.
@@ -139,6 +174,7 @@ module.exports = async function handler(req, res) {
     return res.status(200).json({
       status:   "success",
       authed,
+      location: wantedLocation,
       date:     startDate,
       end_date: endDate,
       spaces:   authed ? spaces : stripIds(spaces),
@@ -151,7 +187,14 @@ module.exports = async function handler(req, res) {
   }
 }
 
-const refId = v => (v && typeof v === 'object') ? String(v.ID || '') : (v == null ? '' : String(v));
+const bookingFields = b => ({
+  id:            b.id,
+  client:        b.client,
+  purpose:       b.purpose,
+  pax:           b.pax,
+  booking_start: b.booking_start,
+  booking_end:   b.booking_end,
+});
 
 // Long-term contracts occupy cabins on the floor plan. If the Contracts forms aren't set up in
 // Creator yet (or Creator errors), the floor plan must keep working, so failures are logged and skipped.
@@ -171,33 +214,43 @@ async function loadContractRows(token, startDate, endDate) {
   }
 }
 
-// Cabin_Number -> booking-shaped record, so the existing tooltip/labels work unchanged.
-function mapContractOccupancy({ contracts, lines }, items) {
-  const cabinByItemId = {};
-  items.forEach(i => {
-    if (i.Cabin_Number && !HOURLY_SPACES.has(i.Cabin_Number)) cabinByItemId[String(i.ID)] = i.Cabin_Number;
-  });
+// Item ID -> the active contracts touching it in this range. Only items in the requested location
+// are in itemById, so another location's contracts can never show up here.
+function mapContractOccupancy({ contracts, lines }, itemById) {
   const contractsById = {};
   contracts.forEach(c => { contractsById[String(c.ID)] = c; });
 
   const out = {};
   lines.forEach(l => {
     const c = contractsById[refId(l.Contract)];
-    const cabin = cabinByItemId[refId(l.Inventory_Items)];
-    if (!c || !cabin) return;
-    // If several contracts touch the range, the one that starts latest wins (same as bookings).
-    const prev = out[cabin];
-    if (prev && fromCreatorDate(prev.booking_start) >= fromCreatorDate(c.Start_Date)) return;
-    out[cabin] = {
-      id:            "",
-      client:        c.Company_Name || "",
-      purpose:       "Long-term contract",
-      pax:           Number(l.Seats) || 0,
-      booking_start: c.Start_Date || "",
-      booking_end:   c.End_Date   || "",
-    };
+    const item = itemById[refId(l.Inventory_Items)];
+    if (!c || !item || classify(item) !== 'leasable') return;
+    const seats = Number(l.Seats) || 0;
+    const entry = (out[String(item.ID)] ||= { seatsLeased: 0, contracts: [] });
+    entry.seatsLeased += seats;
+    entry.contracts.push({ company: c.Company_Name || "", start: c.Start_Date || "", end: c.End_Date || "", seats });
   });
   return out;
+}
+
+// Booking-shaped record so the existing tooltip/labels work unchanged. A cabin shows the contract that
+// starts latest (same as bookings); shared open workspace shows every contract's seats together.
+function contractBooking(entry, open) {
+  const byStartDesc = entry.contracts.slice().sort((a, b) => fromCreatorDate(b.start).localeCompare(fromCreatorDate(a.start)));
+  const latest = byStartDesc[0];
+  if (!open) {
+    return { id: "", client: latest.company, purpose: "Long-term contract", pax: latest.seats, booking_start: latest.start, booking_end: latest.end };
+  }
+  const byStart = byStartDesc.slice().reverse();
+  const byEnd = entry.contracts.slice().sort((a, b) => fromCreatorDate(b.end).localeCompare(fromCreatorDate(a.end)));
+  return {
+    id: "",
+    client: latest.company + (entry.contracts.length > 1 ? ` +${entry.contracts.length - 1} more` : ""),
+    purpose: "Long-term contract",
+    pax: entry.seatsLeased,
+    booking_start: byStart[0].start,
+    booking_end: byEnd[0].end,
+  };
 }
 
 function stripIds(spaces) {

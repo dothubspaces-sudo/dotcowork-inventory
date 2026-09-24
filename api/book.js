@@ -1,10 +1,10 @@
 const { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
+const { classify, nameOf, locationOf } = require('../lib/spaces.js')
 
 // Creator v2.1 adds records through the form, but updates/deletes go through a report.
 const BOOKINGS_REPORT = 'All_Spaces'
 
-const HOURLY_SPACES = new Set(['C-23', 'C-24', 'C-25', 'Training Room', 'Auditorium'])
 const BUSINESS_START_MIN = 9 * 60  // 9 AM
 const BUSINESS_END_MIN   = 21 * 60 // 9 PM
 
@@ -41,6 +41,29 @@ function parseTimeToMinutes(t) {
   return h * 60 + min
 }
 
+// The space being booked. Cabin numbers repeat across locations, so the item ID is what identifies it.
+// A cabin number (plus location) is still accepted for callers that don't have the ID.
+async function findItem(token, { item_id, cabin_number, location }) {
+  if (item_id) {
+    if (!/^\d+$/.test(String(item_id))) return { error: { status: 400, message: 'Invalid space' } }
+    const data = await creatorGet(
+      `report/Inventory_Items_Report?criteria=${encodeURIComponent(`ID == ${item_id}`)}&limit=1`, token
+    )
+    const item = (data.data || [])[0]
+    return item ? { item } : { error: { status: 404, message: 'That space was not found' } }
+  }
+
+  if (/["\\]/.test(cabin_number)) return { error: { status: 400, message: 'Invalid cabin number' } }
+  const data = await creatorGet(
+    `report/Inventory_Items_Report?criteria=${encodeURIComponent(`Cabin_Number == "${cabin_number}"`)}&limit=50`, token
+  )
+  let matches = data.data || []
+  if (location) matches = matches.filter(i => locationOf(i).slug.toLowerCase() === String(location).toLowerCase())
+  if (!matches.length) return { error: { status: 404, message: `No inventory item found for: ${cabin_number}` } }
+  if (matches.length > 1) return { error: { status: 409, message: `${cabin_number} exists in more than one location; choose the location.` } }
+  return { item: matches[0] }
+}
+
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
   res.setHeader('Access-Control-Allow-Methods', 'POST, PATCH, DELETE, OPTIONS')
@@ -70,8 +93,8 @@ module.exports = async function handler(req, res) {
   }
 
   const isEdit = req.method === 'PATCH'
-  const { cabin_number, client_name, booking_start, booking_end, purpose, total_pax, start_time, end_time, booking_id } = req.body || {}
-  if (!cabin_number || !client_name || !booking_start || !booking_end || !purpose) {
+  const { item_id, cabin_number, location, client_name, booking_start, booking_end, purpose, total_pax, start_time, end_time, booking_id } = req.body || {}
+  if ((!item_id && !cabin_number) || !client_name || !booking_start || !booking_end || !purpose) {
     return res.status(400).json({ error: 'Missing required fields' })
   }
   if (isEdit && !booking_id) {
@@ -81,37 +104,37 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'End date must be after start date' })
   }
 
-  const isHourly = HOURLY_SPACES.has(cabin_number)
-  let startMin = null, endMin = null
-
-  if (isHourly) {
-    if (booking_start !== booking_end) {
-      return res.status(400).json({ error: `${cabin_number} can only be booked one day at a time — pick a time slot instead.` })
-    }
-    if (!start_time || !end_time) {
-      return res.status(400).json({ error: 'Select a start and end time' })
-    }
-    startMin = parseTimeToMinutes(start_time)
-    endMin = parseTimeToMinutes(end_time)
-    if (startMin == null || endMin == null || startMin >= endMin) {
-      return res.status(400).json({ error: 'Invalid time range' })
-    }
-    if (startMin < BUSINESS_START_MIN || endMin > BUSINESS_END_MIN) {
-      return res.status(400).json({ error: 'Bookings are only available between 9 AM and 9 PM' })
-    }
-  }
-
   try {
     const token = await getAccessToken()
-    const itemsData = await creatorGet(
-      `report/Inventory_Items_Report?criteria=${encodeURIComponent(`Cabin_Number == "${cabin_number}"`)}&limit=1`,
-      token
-    )
-    const item = (itemsData.data || [])[0]
-    if (!item) {
-      return res.status(404).json({ error: `No inventory item found for: ${cabin_number}` })
+    const found = await findItem(token, { item_id, cabin_number, location })
+    if (found.error) return res.status(found.error.status).json({ error: found.error.message })
+    const item = found.item
+    if (location && locationOf(item).slug.toLowerCase() !== String(location).toLowerCase()) {
+      return res.status(400).json({ error: 'That space is not in the selected location' })
     }
+
     const inventoryItemId = item.ID
+    const spaceName = nameOf(item) || cabin_number
+    const isHourly = classify(item) === 'hourly'
+    let startMin = null, endMin = null
+
+    if (isHourly) {
+      if (booking_start !== booking_end) {
+        return res.status(400).json({ error: `${spaceName} can only be booked one day at a time — pick a time slot instead.` })
+      }
+      if (!start_time || !end_time) {
+        return res.status(400).json({ error: 'Select a start and end time' })
+      }
+      startMin = parseTimeToMinutes(start_time)
+      endMin = parseTimeToMinutes(end_time)
+      if (startMin == null || endMin == null || startMin >= endMin) {
+        return res.status(400).json({ error: 'Invalid time range' })
+      }
+      if (startMin < BUSINESS_START_MIN || endMin > BUSINESS_END_MIN) {
+        return res.status(400).json({ error: 'Bookings are only available between 9 AM and 9 PM' })
+      }
+    }
+
     let criteria = `Inventory_Items == ${inventoryItemId} && Booking_Start <= "${toCreatorDate(booking_end)}" && Booking_End >= "${toCreatorDate(booking_start)}"`
     if (isEdit) criteria += ` && ID != ${booking_id}`
     const conflictData = await creatorGet(
@@ -136,14 +159,14 @@ module.exports = async function handler(req, res) {
           : null
         return res.status(409).json({
           error: exHasTime
-            ? `${cabin_number} is already booked ${clashRange} on ${clash.Booking_Start} by ${clash.Client_Name}.`
-            : `${cabin_number} is already booked all day on ${clash.Booking_Start} by ${clash.Client_Name}.`,
+            ? `${spaceName} is already booked ${clashRange} on ${clash.Booking_Start} by ${clash.Client_Name}.`
+            : `${spaceName} is already booked all day on ${clash.Booking_Start} by ${clash.Client_Name}.`,
         })
       }
     } else if (conflicts.length > 0) {
       const ex = conflicts[0]
       return res.status(409).json({
-        error: `${cabin_number} is already booked from ${ex.Booking_Start} to ${ex.Booking_End} by ${ex.Client_Name}.`,
+        error: `${spaceName} is already booked from ${ex.Booking_Start} to ${ex.Booking_End} by ${ex.Client_Name}.`,
       })
     }
 
@@ -163,7 +186,7 @@ module.exports = async function handler(req, res) {
     if (isEdit) {
       const result = await creatorPatch(`report/${BOOKINGS_REPORT}/${booking_id}`, payload, token)
       if (result.code === 3000) {
-        return res.status(200).json({ status: 'success', message: `Booking updated for ${cabin_number}`, id: booking_id })
+        return res.status(200).json({ status: 'success', message: `Booking updated for ${spaceName}`, id: booking_id })
       }
       return res.status(500).json({ error: 'Creator rejected the update', detail: result })
     }
@@ -172,7 +195,7 @@ module.exports = async function handler(req, res) {
     if (result.code === 3000) {
       return res.status(200).json({
         status:  'success',
-        message: `Booking confirmed for ${cabin_number}`,
+        message: `Booking confirmed for ${spaceName}`,
         id:      result.data?.ID || null,
       })
     } else {

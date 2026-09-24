@@ -1,6 +1,7 @@
 const { getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 const { toCreatorDate, fromCreatorDate, isISODate, todayISO, daysBetween } = require('../lib/dates.js')
+const { classify, isOpenWorkspace, capacityOf, nameOf, locationOf } = require('../lib/spaces.js')
 const cfg = require('../lib/config.js')
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -38,34 +39,41 @@ async function loadState(token) {
   return { items, itemsById, contracts, lines, linesByContract }
 }
 
-function isLeasableCabin(item) {
-  const number = item.Cabin_Number
-  if (!number || cfg.HOURLY_SPACES.has(number)) return false
-  if (cfg.NON_CABIN_NAME_PATTERN.test(`${number} ${item.Unit_Label || ''}`)) return false
-  return cfg.CABIN_TYPE_PATTERN.test(String(item.Workspace_Type || ''))
+// Private cabins and open workspace can be put under contract; meeting/board/conference rooms and
+// event spaces never can. lib/spaces.js decides, so every part of the app agrees.
+function isLeasable(item) {
+  return classify(item) === 'leasable' && !!nameOf(item)
 }
 
-// When no cabin is found, say what was actually read so the cause is visible instead of guessed.
+// When nothing leasable is found, say what was actually read so the cause is visible instead of guessed.
 function catalogDiagnostics(items) {
   const distinct = fn => [...new Set(items.map(fn).filter(Boolean))].slice(0, 10)
   return {
     items_read:        items.length,
-    with_cabin_number: items.filter(i => i.Cabin_Number).length,
+    with_cabin_number: items.filter(i => nameOf(i)).length,
     workspace_types:   distinct(i => text(i.Workspace_Type)),
     fields_seen:       Object.keys(items[0] || {}).slice(0, 30),
   }
 }
 
+// `seats` is what a new contract line defaults to; `capacity` is what the space holds. For a cabin they are the
+// same. Open workspace is shared, so a line defaults to 1 seat out of the whole capacity.
 function buildCatalog(items) {
-  return items.filter(isLeasableCabin).map(i => ({
-    item_id:        String(i.ID),
-    cabin_number:   i.Cabin_Number,
-    label:          i.Unit_Label || i.Cabin_Number,
-    seats:          num(i.No_of_Seats || i.Capacity),
-    workspace_type: i.Workspace_Type || '',
-    location:       lookupName(i.Location_Master),
-    location_id:    lookupId(i.Location_Master),
-  })).sort((a, b) => a.cabin_number.localeCompare(b.cabin_number, undefined, { numeric: true }))
+  return items.filter(isLeasable).map(i => {
+    const open = isOpenWorkspace(i)
+    const capacity = capacityOf(i)
+    return {
+      item_id:        String(i.ID),
+      cabin_number:   nameOf(i),
+      label:          text(i.Unit_Label) || nameOf(i),
+      seats:          open ? 1 : capacity,
+      capacity,
+      open_workspace: open,
+      workspace_type: text(i.Workspace_Type),
+      location:       locationOf(i).slug,
+      location_id:    locationOf(i).id,
+    }
+  }).sort((a, b) => a.cabin_number.localeCompare(b.cabin_number, undefined, { numeric: true }))
 }
 
 // Only Active/Terminated is stored in Creator; everything time-based is derived so it can't go stale.
@@ -82,7 +90,7 @@ function shapeContract(c, rawLines, itemsById, today) {
     return {
       line_id:       String(l.ID),
       item_id:       lookupId(l.Inventory_Items),
-      cabin_number:  item.Cabin_Number || lookupName(l.Inventory_Items),
+      cabin_number:  nameOf(item) || lookupName(l.Inventory_Items),
       seats:         num(l.Seats),
       monthly_price: num(l.Monthly_Price),
     }
@@ -125,6 +133,20 @@ function withOccupancy(catalog, contracts) {
   }
   return catalog.map(cabin => {
     const uses = c => c.cabins.some(l => l.item_id === cabin.item_id)
+    if (cabin.open_workspace) {
+      // Shared space: several contracts each take some seats. It reads "occupied" only once every seat is leased.
+      const now = contracts.filter(c => (c.phase === 'active' || c.phase === 'expiring') && uses(c))
+      const leased = now.reduce((s, c) => s + c.cabins.filter(l => l.item_id === cabin.item_id).reduce((n, l) => n + l.seats, 0), 0)
+      const upcoming = contracts.filter(c => c.phase === 'upcoming' && uses(c))
+        .sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
+      return {
+        ...cabin,
+        seats_leased:  leased,
+        state:         leased >= cabin.capacity && leased > 0 ? 'occupied' : (leased > 0 ? 'partial' : 'vacant'),
+        contract:      pick(now[0]),
+        next_contract: pick(upcoming),
+      }
+    }
     const current = contracts.find(c => (c.phase === 'active' || c.phase === 'expiring') && uses(c))
     const upcoming = contracts.filter(c => c.phase === 'upcoming' && uses(c))
       .sort((a, b) => a.start_date.localeCompare(b.start_date))[0]
@@ -143,10 +165,12 @@ function withOccupancy(catalog, contracts) {
 function summarize(contracts, cabins) {
   const current = contracts.filter(c => c.phase === 'active' || c.phase === 'expiring')
   const within = n => current.filter(c => c.days_to_expiry <= n).length
+  // The cabin counts are for private cabins; shared open workspace is counted through seats.
+  const privateCabins = cabins.filter(c => !c.open_workspace)
   return {
     active_contracts:          current.length,
-    cabins_total:              cabins.length,
-    cabins_occupied:           cabins.filter(c => c.state === 'occupied').length,
+    cabins_total:              privateCabins.length,
+    cabins_occupied:           privateCabins.filter(c => c.state === 'occupied').length,
     seats_occupied:            current.reduce((s, c) => s + c.total_seats, 0),
     monthly_recurring_revenue: round2(current.reduce((s, c) => s + c.monthly_rent, 0)),
     expiring_30:               within(30),
@@ -214,11 +238,14 @@ function parseContractBody(body, catalogById) {
   const lines = raw.map(l => {
     const itemId = String(l.item_id || '')
     const item = catalogById[itemId]
-    if (!item) throw new HttpError(400, 'Only private cabins can be put under a contract (not meeting rooms, the board room, training room or auditorium)')
+    if (!item) throw new HttpError(400, 'Only private cabins and open workspace can be put under a contract (not meeting, board or conference rooms, or event spaces)')
     if (seen.has(itemId)) throw new HttpError(400, `${item.cabin_number} is selected twice`)
     seen.add(itemId)
     const seats = l.seats == null || l.seats === '' ? item.seats : Number(l.seats)
     if (!Number.isInteger(seats) || seats < 1 || seats > 500) throw new HttpError(400, `Seats for ${item.cabin_number} must be a whole number`)
+    if (item.open_workspace && item.capacity && seats > item.capacity) {
+      throw new HttpError(400, `${item.cabin_number} only has ${item.capacity} seats`)
+    }
     const blank = l.monthly_price == null || String(l.monthly_price).trim() === ''
     const price = Number(l.monthly_price)
     if (blank || !Number.isFinite(price) || price < 0) throw new HttpError(400, `Enter a monthly price for ${item.cabin_number}`)
@@ -249,9 +276,11 @@ function contractPayload(input) {
 }
 
 // A cabin can't be in two overlapping contracts, and can't overlap an existing short-term booking.
+// Open workspace is shared: contracts may overlap as long as their seats fit the space's capacity.
 async function assertNoConflicts(token, catalogById, state, { lines, start, end, excludeContractId }) {
   const clashes = []
   const wanted = new Set(lines.map(l => l.item_id))
+  const seatsTaken = {}
 
   state.contracts.forEach(c => {
     if (String(c.ID) === String(excludeContractId) || (c.Status || 'Active') === 'Terminated') return
@@ -260,13 +289,25 @@ async function assertNoConflicts(token, catalogById, state, { lines, start, end,
     if (!(cStart <= end && cEnd >= start)) return
     ;(state.linesByContract[String(c.ID)] || []).forEach(l => {
       const itemId = lookupId(l.Inventory_Items)
-      if (wanted.has(itemId)) {
+      if (!wanted.has(itemId)) return
+      if (catalogById[itemId].open_workspace) {
+        seatsTaken[itemId] = (seatsTaken[itemId] || 0) + num(l.Seats)
+      } else {
         clashes.push(`${catalogById[itemId].cabin_number} is already under contract ${text(c.Contract_No) || text(c.Company_Name)} (${cStart} to ${cEnd}).`)
       }
     })
   })
 
-  await Promise.all(lines.map(async l => {
+  lines.forEach(l => {
+    const space = catalogById[l.item_id]
+    if (!space.open_workspace) return
+    const free = space.capacity - (seatsTaken[l.item_id] || 0)
+    if (l.seats > free) {
+      clashes.push(`${space.cabin_number} has ${Math.max(free, 0)} of ${space.capacity} seats free for these dates (${l.seats} requested).`)
+    }
+  })
+
+  await Promise.all(lines.filter(l => !catalogById[l.item_id].open_workspace).map(async l => {
     const criteria = `Inventory_Items == ${l.item_id} && Booking_Start <= "${toCreatorDate(end)}" && Booking_End >= "${toCreatorDate(start)}"`
     const found = await creatorGet(`report/${cfg.BOOKINGS_REPORT}?criteria=${encodeURIComponent(criteria)}&limit=1`, token)
     const b = (found.data || [])[0]
