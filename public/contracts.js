@@ -84,11 +84,13 @@ function render(){
 function renderCards(){
   const s=data.summary;
   const pct=s.cabins_total?Math.round(s.cabins_occupied/s.cabins_total*100):0;
+  // Occupancy view only: no revenue totals here. Vacant means free today (an expired-but-unactioned cabin isn't counted).
+  const vacant=data.cabins.filter(c=>!c.open_workspace&&c.state==='vacant').length;
   $('cards').innerHTML=[
     ['Active contracts',s.active_contracts,'',''],
     ['Cabins occupied',`${s.cabins_occupied} / ${s.cabins_total}`,`${pct}% occupancy`,''],
     ['Seats occupied',s.seats_occupied,'',''],
-    ['Monthly revenue',inr(s.monthly_recurring_revenue),'from active contracts',''],
+    ['Vacant cabins',vacant,'ready to lease',''],
     ['Expiring ≤30 days',s.expiring_30,`${s.expiring_60} in 60 · ${s.expiring_90} in 90`,s.expiring_30?'warn':''],
     ['Renewals pending',s.renewals_pending,s.overdue?`${s.overdue} expired, no action taken`:'nothing overdue',s.overdue?'bad':(s.renewals_pending?'warn':'')]
   ].map(([k,v,sub,cls])=>`<div class="ct-card ${cls}"><div class="ct-k">${k}</div><div class="ct-v">${esc(v)}</div><div class="ct-s">${esc(sub)}</div></div>`).join('');

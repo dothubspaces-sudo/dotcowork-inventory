@@ -172,7 +172,6 @@ function summarize(contracts, cabins) {
     cabins_total:              privateCabins.length,
     cabins_occupied:           privateCabins.filter(c => c.state === 'occupied').length,
     seats_occupied:            current.reduce((s, c) => s + c.total_seats, 0),
-    monthly_recurring_revenue: round2(current.reduce((s, c) => s + c.monthly_rent, 0)),
     expiring_30:               within(30),
     expiring_60:               within(60),
     expiring_90:               within(90),
