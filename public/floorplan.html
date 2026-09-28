@@ -621,7 +621,9 @@ svg#fp{display:block;width:100%;height:auto}
 
   <div class="fcard" id="planCard">
 
-    <div class="flabel"><span class="flabel-dot"></span>Tharamani · Ground Floor</div>
+    <div class="flabel"><span class="flabel-dot"></span><span id="planLabelText">Tharamani · Ground Floor</span></div>
+
+    <div id="planWrap">
 
     <svg id="fp" viewBox="0 0 1260 1020" xmlns="http://www.w3.org/2000/svg">
 
@@ -764,6 +766,8 @@ svg#fp{display:block;width:100%;height:auto}
       <g class="cg av" id="g22" onmouseenter="tip(event,22)" onmouseleave="ht()"><rect class="cb" x="934" y="918" width="120" height="74" rx="4"/><text class="cn" x="942" y="937" font-size="9">C-17</text><text class="st" x="994" y="949" text-anchor="middle" font-size="8">6-seater</text><text class="lb" x="994" y="965" text-anchor="middle" font-size="8" id="lb22">Available</text><text class="cl" x="994" y="979" text-anchor="middle" font-size="7" id="cl22"></text></g>
 
     </svg>
+
+    </div>
 
   </div>
 
@@ -1137,44 +1141,130 @@ svg#fp{display:block;width:100%;height:auto}
 
 // ── CABIN DATA ──
 
-const CABINS={
-  1:{seats:5,type:'5-seater',label:'C-01'},
-  2:{seats:5,type:'5-seater',label:'C-02'},
-  3:{seats:3,type:'3-seater',label:'C-03'},
-  4:{seats:5,type:'5-seater',label:'C-04'},
-  5:{seats:2,type:'2-seater',label:'C-05'},
-  6:{seats:2,type:'2-seater',label:'C-06'},
-  7:{seats:2,type:'2-seater',label:'C-07'},
-  8:{seats:2,type:'2-seater',label:'C-08'},
-  9:{seats:3,type:'3-seater',label:'C-09'},
-  10:{seats:3,type:'3-seater',label:'C-10'},
-  11:{seats:5,type:'5-seater',label:'C-11'},
-  12:{seats:5,type:'5-seater',label:'C-12'},
-  13:{seats:5,type:'5-seater',label:'C-14'},
-  14:{seats:3,type:'3-seater',label:'C-13'},
-  15:{seats:10,type:'10-seater',label:'C-21'},
-  16:{seats:10,type:'10-seater',label:'C-20'},
-  17:{seats:10,type:'10-seater',label:'C-19'},
-  18:{seats:5,type:'5-seater',label:'C-18'},
-  19:{seats:6,type:'6-seater',label:'C-22'},
-  20:{seats:6,type:'6-seater',label:'C-15'},
-  21:{seats:6,type:'6-seater',label:'C-16'},
-  22:{seats:6,type:'6-seater',label:'C-17'},
-  23:{seats:6,type:'meeting room',label:'C-23'},
-  24:{seats:6,type:'meeting room',label:'C-24'},
-  25:{seats:15,type:'board room',label:'C-25'},
+// Each cabin key is an internal id used for the SVG element (id="g"+key); `label` is the real
+// Cabin_Number/name that must match Zoho. Keys only need to be unique within their own location.
+let CABINS={}, EXT={};
+
+const PLANS={
+  'tidel-omr': {
+    title:'Tharamani · Ground Floor',
+    cabins:{
+      1:{seats:5,type:'5-seater',label:'C-01',small:true},
+      2:{seats:5,type:'5-seater',label:'C-02',small:true},
+      3:{seats:3,type:'3-seater',label:'C-03',small:true},
+      4:{seats:5,type:'5-seater',label:'C-04',small:true},
+      5:{seats:2,type:'2-seater',label:'C-05',small:true},
+      6:{seats:2,type:'2-seater',label:'C-06',small:true},
+      7:{seats:2,type:'2-seater',label:'C-07',small:true},
+      8:{seats:2,type:'2-seater',label:'C-08',small:true},
+      9:{seats:3,type:'3-seater',label:'C-09'},
+      10:{seats:3,type:'3-seater',label:'C-10'},
+      11:{seats:5,type:'5-seater',label:'C-11'},
+      12:{seats:5,type:'5-seater',label:'C-12'},
+      13:{seats:5,type:'5-seater',label:'C-14'},
+      14:{seats:3,type:'3-seater',label:'C-13'},
+      15:{seats:10,type:'10-seater',label:'C-21'},
+      16:{seats:10,type:'10-seater',label:'C-20'},
+      17:{seats:10,type:'10-seater',label:'C-19'},
+      18:{seats:5,type:'5-seater',label:'C-18'},
+      19:{seats:6,type:'6-seater',label:'C-22'},
+      20:{seats:6,type:'6-seater',label:'C-15'},
+      21:{seats:6,type:'6-seater',label:'C-16'},
+      22:{seats:6,type:'6-seater',label:'C-17'},
+      23:{seats:6,type:'meeting room',label:'C-23'},
+      24:{seats:6,type:'meeting room',label:'C-24'},
+      25:{seats:15,type:'board room',label:'C-25'},
+    },
+    ext:{
+      training:{label:'Training Room',key:'Training Room',cap:50},
+      auditorium:{label:'Auditorium',key:'Auditorium',cap:500},
+    },
+    svg:null // captured from the static markup already in the page, the first time it's needed
+  },
+  'tidel-pat': {
+    title:'Pattabiram · 18th Floor',
+    cabins:{
+      1:{seats:7,type:'meeting room',label:'Meeting Room 1'},
+      2:{seats:6,type:'meeting room',label:'Meeting Room 2'},
+      3:{seats:12,type:'board room',label:'Board Room'},
+      4:{seats:18,type:'conference room',label:'Conference Room'},
+      5:{seats:10,type:'10-seater',label:'P-18'},
+      6:{seats:8,type:'8-seater',label:'P-19'},
+      7:{seats:10,type:'10-seater',label:'P-02'},
+      8:{seats:10,type:'10-seater',label:'P-03'},
+      9:{seats:10,type:'10-seater',label:'P-04'},
+      10:{seats:5,type:'5-seater',label:'P-05'},
+      11:{seats:5,type:'5-seater',label:'P-06'},
+      12:{seats:5,type:'5-seater',label:'P-07'},
+      13:{seats:5,type:'5-seater',label:'P-08'},
+      14:{seats:5,type:'5-seater',label:'P-09'},
+      15:{seats:4,type:'4-seater',label:'P-10'},
+      16:{seats:4,type:'4-seater',label:'P-11'},
+      17:{seats:4,type:'4-seater',label:'P-12'},
+      18:{seats:4,type:'4-seater',label:'P-13'},
+      19:{seats:2,type:'2-seater',label:'P-14'},
+      20:{seats:2,type:'2-seater',label:'P-15'},
+      21:{seats:2,type:'2-seater',label:'P-16'},
+      22:{seats:2,type:'2-seater',label:'P-17'},
+      23:{seats:4,type:'4-seater',label:'P-20'},
+      24:{seats:4,type:'4-seater',label:'P-21'},
+      25:{seats:8,type:'8-seater',label:'P-22'},
+      26:{seats:6,type:'6-seater',label:'P-23'},
+      27:{seats:5,type:'5-seater',label:'P-24'},
+      28:{seats:5,type:'5-seater',label:'P-25'},
+      29:{seats:5,type:'5-seater',label:'P-27'},
+      30:{seats:2,type:'2-seater',label:'P-28'},
+      31:{seats:2,type:'2-seater',label:'P-29'},
+      32:{seats:30,type:'open workspace',label:'P-26'},
+      33:{seats:21,type:'open workspace',label:'P-30'},
+    },
+    ext:{},
+    svg:`<svg id="fp" viewBox="0 0 1020 866" xmlns="http://www.w3.org/2000/svg">
+      <rect x="0" y="0" width="1020" height="866" fill="#fafafa"/>
+      <g class="cg av" id="g1" onmouseenter="tip(event,1)" onmouseleave="ht()"><rect class="cb" x="20" y="54" width="150" height="118" rx="4"/><text class="cn" x="28" y="74" font-size="9">Meeting Room 1</text><text class="st" x="95" y="94" text-anchor="middle" font-size="8">7 PAX</text><text class="lb" x="95" y="114" text-anchor="middle" font-size="8" id="lb1">Available</text><text class="cl" x="95" y="132" text-anchor="middle" font-size="7.5" id="cl1"></text><text class="dt" x="95" y="148" text-anchor="middle" font-size="7" id="dt1"></text></g>
+      <g class="cg av" id="g2" onmouseenter="tip(event,2)" onmouseleave="ht()"><rect class="cb" x="186" y="54" width="150" height="118" rx="4"/><text class="cn" x="194" y="74" font-size="9">Meeting Room 2</text><text class="st" x="261" y="94" text-anchor="middle" font-size="8">6 PAX *</text><text class="lb" x="261" y="114" text-anchor="middle" font-size="8" id="lb2">Available</text><text class="cl" x="261" y="132" text-anchor="middle" font-size="7.5" id="cl2"></text><text class="dt" x="261" y="148" text-anchor="middle" font-size="7" id="dt2"></text></g>
+      <g class="cg av" id="g3" onmouseenter="tip(event,3)" onmouseleave="ht()"><rect class="cb" x="352" y="54" width="150" height="118" rx="4"/><text class="cn" x="360" y="74" font-size="9">Board Room</text><text class="st" x="427" y="94" text-anchor="middle" font-size="8">12 PAX *</text><text class="lb" x="427" y="114" text-anchor="middle" font-size="8" id="lb3">Available</text><text class="cl" x="427" y="132" text-anchor="middle" font-size="7.5" id="cl3"></text><text class="dt" x="427" y="148" text-anchor="middle" font-size="7" id="dt3"></text></g>
+      <g class="cg av" id="g4" onmouseenter="tip(event,4)" onmouseleave="ht()"><rect class="cb" x="518" y="54" width="150" height="118" rx="4"/><text class="cn" x="526" y="74" font-size="9">Conference Room</text><text class="st" x="593" y="94" text-anchor="middle" font-size="8">18 PAX</text><text class="lb" x="593" y="114" text-anchor="middle" font-size="8" id="lb4">Available</text><text class="cl" x="593" y="132" text-anchor="middle" font-size="7.5" id="cl4"></text><text class="dt" x="593" y="148" text-anchor="middle" font-size="7" id="dt4"></text></g>
+      <g class="cg av" id="g5" onmouseenter="tip(event,5)" onmouseleave="ht()"><rect class="cb" x="684" y="54" width="150" height="118" rx="4"/><text class="cn" x="692" y="74" font-size="9">P-18</text><text class="st" x="759" y="94" text-anchor="middle" font-size="8">10-seater</text><text class="lb" x="759" y="114" text-anchor="middle" font-size="8" id="lb5">Available</text><text class="cl" x="759" y="132" text-anchor="middle" font-size="7.5" id="cl5"></text><text class="dt" x="759" y="148" text-anchor="middle" font-size="7" id="dt5"></text></g>
+      <g class="cg av" id="g6" onmouseenter="tip(event,6)" onmouseleave="ht()"><rect class="cb" x="850" y="54" width="150" height="118" rx="4"/><text class="cn" x="858" y="74" font-size="9">P-19</text><text class="st" x="925" y="94" text-anchor="middle" font-size="8">8-seater</text><text class="lb" x="925" y="114" text-anchor="middle" font-size="8" id="lb6">Available</text><text class="cl" x="925" y="132" text-anchor="middle" font-size="7.5" id="cl6"></text><text class="dt" x="925" y="148" text-anchor="middle" font-size="7" id="dt6"></text></g>
+      <g class="cg av" id="g7" onmouseenter="tip(event,7)" onmouseleave="ht()"><rect class="cb" x="20" y="188" width="150" height="118" rx="4"/><text class="cn" x="28" y="208" font-size="9">P-02</text><text class="st" x="95" y="228" text-anchor="middle" font-size="8">10-seater</text><text class="lb" x="95" y="248" text-anchor="middle" font-size="8" id="lb7">Available</text><text class="cl" x="95" y="266" text-anchor="middle" font-size="7.5" id="cl7"></text><text class="dt" x="95" y="282" text-anchor="middle" font-size="7" id="dt7"></text></g>
+      <g class="cg av" id="g8" onmouseenter="tip(event,8)" onmouseleave="ht()"><rect class="cb" x="186" y="188" width="150" height="118" rx="4"/><text class="cn" x="194" y="208" font-size="9">P-03</text><text class="st" x="261" y="228" text-anchor="middle" font-size="8">10-seater</text><text class="lb" x="261" y="248" text-anchor="middle" font-size="8" id="lb8">Available</text><text class="cl" x="261" y="266" text-anchor="middle" font-size="7.5" id="cl8"></text><text class="dt" x="261" y="282" text-anchor="middle" font-size="7" id="dt8"></text></g>
+      <g class="cg av" id="g9" onmouseenter="tip(event,9)" onmouseleave="ht()"><rect class="cb" x="352" y="188" width="150" height="118" rx="4"/><text class="cn" x="360" y="208" font-size="9">P-04</text><text class="st" x="427" y="228" text-anchor="middle" font-size="8">10-seater</text><text class="lb" x="427" y="248" text-anchor="middle" font-size="8" id="lb9">Available</text><text class="cl" x="427" y="266" text-anchor="middle" font-size="7.5" id="cl9"></text><text class="dt" x="427" y="282" text-anchor="middle" font-size="7" id="dt9"></text></g>
+      <g class="cg av" id="g10" onmouseenter="tip(event,10)" onmouseleave="ht()"><rect class="cb" x="518" y="188" width="150" height="118" rx="4"/><text class="cn" x="526" y="208" font-size="9">P-05</text><text class="st" x="593" y="228" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="593" y="248" text-anchor="middle" font-size="8" id="lb10">Available</text><text class="cl" x="593" y="266" text-anchor="middle" font-size="7.5" id="cl10"></text><text class="dt" x="593" y="282" text-anchor="middle" font-size="7" id="dt10"></text></g>
+      <g class="cg av" id="g11" onmouseenter="tip(event,11)" onmouseleave="ht()"><rect class="cb" x="684" y="188" width="150" height="118" rx="4"/><text class="cn" x="692" y="208" font-size="9">P-06</text><text class="st" x="759" y="228" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="759" y="248" text-anchor="middle" font-size="8" id="lb11">Available</text><text class="cl" x="759" y="266" text-anchor="middle" font-size="7.5" id="cl11"></text><text class="dt" x="759" y="282" text-anchor="middle" font-size="7" id="dt11"></text></g>
+      <g class="cg av" id="g12" onmouseenter="tip(event,12)" onmouseleave="ht()"><rect class="cb" x="850" y="188" width="150" height="118" rx="4"/><text class="cn" x="858" y="208" font-size="9">P-07</text><text class="st" x="925" y="228" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="925" y="248" text-anchor="middle" font-size="8" id="lb12">Available</text><text class="cl" x="925" y="266" text-anchor="middle" font-size="7.5" id="cl12"></text><text class="dt" x="925" y="282" text-anchor="middle" font-size="7" id="dt12"></text></g>
+      <g class="cg av" id="g13" onmouseenter="tip(event,13)" onmouseleave="ht()"><rect class="cb" x="20" y="322" width="150" height="118" rx="4"/><text class="cn" x="28" y="342" font-size="9">P-08</text><text class="st" x="95" y="362" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="95" y="382" text-anchor="middle" font-size="8" id="lb13">Available</text><text class="cl" x="95" y="400" text-anchor="middle" font-size="7.5" id="cl13"></text><text class="dt" x="95" y="416" text-anchor="middle" font-size="7" id="dt13"></text></g>
+      <g class="cg av" id="g14" onmouseenter="tip(event,14)" onmouseleave="ht()"><rect class="cb" x="186" y="322" width="150" height="118" rx="4"/><text class="cn" x="194" y="342" font-size="9">P-09</text><text class="st" x="261" y="362" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="261" y="382" text-anchor="middle" font-size="8" id="lb14">Available</text><text class="cl" x="261" y="400" text-anchor="middle" font-size="7.5" id="cl14"></text><text class="dt" x="261" y="416" text-anchor="middle" font-size="7" id="dt14"></text></g>
+      <g class="cg av" id="g15" onmouseenter="tip(event,15)" onmouseleave="ht()"><rect class="cb" x="352" y="322" width="150" height="118" rx="4"/><text class="cn" x="360" y="342" font-size="9">P-10</text><text class="st" x="427" y="362" text-anchor="middle" font-size="8">4-seater</text><text class="lb" x="427" y="382" text-anchor="middle" font-size="8" id="lb15">Available</text><text class="cl" x="427" y="400" text-anchor="middle" font-size="7.5" id="cl15"></text><text class="dt" x="427" y="416" text-anchor="middle" font-size="7" id="dt15"></text></g>
+      <g class="cg av" id="g16" onmouseenter="tip(event,16)" onmouseleave="ht()"><rect class="cb" x="518" y="322" width="150" height="118" rx="4"/><text class="cn" x="526" y="342" font-size="9">P-11</text><text class="st" x="593" y="362" text-anchor="middle" font-size="8">4-seater</text><text class="lb" x="593" y="382" text-anchor="middle" font-size="8" id="lb16">Available</text><text class="cl" x="593" y="400" text-anchor="middle" font-size="7.5" id="cl16"></text><text class="dt" x="593" y="416" text-anchor="middle" font-size="7" id="dt16"></text></g>
+      <g class="cg av" id="g17" onmouseenter="tip(event,17)" onmouseleave="ht()"><rect class="cb" x="684" y="322" width="150" height="118" rx="4"/><text class="cn" x="692" y="342" font-size="9">P-12</text><text class="st" x="759" y="362" text-anchor="middle" font-size="8">4-seater</text><text class="lb" x="759" y="382" text-anchor="middle" font-size="8" id="lb17">Available</text><text class="cl" x="759" y="400" text-anchor="middle" font-size="7.5" id="cl17"></text><text class="dt" x="759" y="416" text-anchor="middle" font-size="7" id="dt17"></text></g>
+      <g class="cg av" id="g18" onmouseenter="tip(event,18)" onmouseleave="ht()"><rect class="cb" x="850" y="322" width="150" height="118" rx="4"/><text class="cn" x="858" y="342" font-size="9">P-13</text><text class="st" x="925" y="362" text-anchor="middle" font-size="8">4-seater *</text><text class="lb" x="925" y="382" text-anchor="middle" font-size="8" id="lb18">Available</text><text class="cl" x="925" y="400" text-anchor="middle" font-size="7.5" id="cl18"></text><text class="dt" x="925" y="416" text-anchor="middle" font-size="7" id="dt18"></text></g>
+      <g class="cg av" id="g19" onmouseenter="tip(event,19)" onmouseleave="ht()"><rect class="cb" x="20" y="456" width="150" height="118" rx="4"/><text class="cn" x="28" y="476" font-size="9">P-14</text><text class="st" x="95" y="496" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="95" y="516" text-anchor="middle" font-size="8" id="lb19">Available</text><text class="cl" x="95" y="534" text-anchor="middle" font-size="7.5" id="cl19"></text><text class="dt" x="95" y="550" text-anchor="middle" font-size="7" id="dt19"></text></g>
+      <g class="cg av" id="g20" onmouseenter="tip(event,20)" onmouseleave="ht()"><rect class="cb" x="186" y="456" width="150" height="118" rx="4"/><text class="cn" x="194" y="476" font-size="9">P-15</text><text class="st" x="261" y="496" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="261" y="516" text-anchor="middle" font-size="8" id="lb20">Available</text><text class="cl" x="261" y="534" text-anchor="middle" font-size="7.5" id="cl20"></text><text class="dt" x="261" y="550" text-anchor="middle" font-size="7" id="dt20"></text></g>
+      <g class="cg av" id="g21" onmouseenter="tip(event,21)" onmouseleave="ht()"><rect class="cb" x="352" y="456" width="150" height="118" rx="4"/><text class="cn" x="360" y="476" font-size="9">P-16</text><text class="st" x="427" y="496" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="427" y="516" text-anchor="middle" font-size="8" id="lb21">Available</text><text class="cl" x="427" y="534" text-anchor="middle" font-size="7.5" id="cl21"></text><text class="dt" x="427" y="550" text-anchor="middle" font-size="7" id="dt21"></text></g>
+      <g class="cg av" id="g22" onmouseenter="tip(event,22)" onmouseleave="ht()"><rect class="cb" x="518" y="456" width="150" height="118" rx="4"/><text class="cn" x="526" y="476" font-size="9">P-17</text><text class="st" x="593" y="496" text-anchor="middle" font-size="8">2-seater</text><text class="lb" x="593" y="516" text-anchor="middle" font-size="8" id="lb22">Available</text><text class="cl" x="593" y="534" text-anchor="middle" font-size="7.5" id="cl22"></text><text class="dt" x="593" y="550" text-anchor="middle" font-size="7" id="dt22"></text></g>
+      <g class="cg av" id="g23" onmouseenter="tip(event,23)" onmouseleave="ht()"><rect class="cb" x="684" y="456" width="150" height="118" rx="4"/><text class="cn" x="692" y="476" font-size="9">P-20</text><text class="st" x="759" y="496" text-anchor="middle" font-size="8">4-seater *</text><text class="lb" x="759" y="516" text-anchor="middle" font-size="8" id="lb23">Available</text><text class="cl" x="759" y="534" text-anchor="middle" font-size="7.5" id="cl23"></text><text class="dt" x="759" y="550" text-anchor="middle" font-size="7" id="dt23"></text></g>
+      <g class="cg av" id="g24" onmouseenter="tip(event,24)" onmouseleave="ht()"><rect class="cb" x="850" y="456" width="150" height="118" rx="4"/><text class="cn" x="858" y="476" font-size="9">P-21</text><text class="st" x="925" y="496" text-anchor="middle" font-size="8">4-seater *</text><text class="lb" x="925" y="516" text-anchor="middle" font-size="8" id="lb24">Available</text><text class="cl" x="925" y="534" text-anchor="middle" font-size="7.5" id="cl24"></text><text class="dt" x="925" y="550" text-anchor="middle" font-size="7" id="dt24"></text></g>
+      <g class="cg av" id="g25" onmouseenter="tip(event,25)" onmouseleave="ht()"><rect class="cb" x="20" y="590" width="150" height="118" rx="4"/><text class="cn" x="28" y="610" font-size="9">P-22</text><text class="st" x="95" y="630" text-anchor="middle" font-size="8">8-seater</text><text class="lb" x="95" y="650" text-anchor="middle" font-size="8" id="lb25">Available</text><text class="cl" x="95" y="668" text-anchor="middle" font-size="7.5" id="cl25"></text><text class="dt" x="95" y="684" text-anchor="middle" font-size="7" id="dt25"></text></g>
+      <g class="cg av" id="g26" onmouseenter="tip(event,26)" onmouseleave="ht()"><rect class="cb" x="186" y="590" width="150" height="118" rx="4"/><text class="cn" x="194" y="610" font-size="9">P-23</text><text class="st" x="261" y="630" text-anchor="middle" font-size="8">6-seater *</text><text class="lb" x="261" y="650" text-anchor="middle" font-size="8" id="lb26">Available</text><text class="cl" x="261" y="668" text-anchor="middle" font-size="7.5" id="cl26"></text><text class="dt" x="261" y="684" text-anchor="middle" font-size="7" id="dt26"></text></g>
+      <g class="cg av" id="g27" onmouseenter="tip(event,27)" onmouseleave="ht()"><rect class="cb" x="352" y="590" width="150" height="118" rx="4"/><text class="cn" x="360" y="610" font-size="9">P-24</text><text class="st" x="427" y="630" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="427" y="650" text-anchor="middle" font-size="8" id="lb27">Available</text><text class="cl" x="427" y="668" text-anchor="middle" font-size="7.5" id="cl27"></text><text class="dt" x="427" y="684" text-anchor="middle" font-size="7" id="dt27"></text></g>
+      <g class="cg av" id="g28" onmouseenter="tip(event,28)" onmouseleave="ht()"><rect class="cb" x="518" y="590" width="150" height="118" rx="4"/><text class="cn" x="526" y="610" font-size="9">P-25</text><text class="st" x="593" y="630" text-anchor="middle" font-size="8">5-seater</text><text class="lb" x="593" y="650" text-anchor="middle" font-size="8" id="lb28">Available</text><text class="cl" x="593" y="668" text-anchor="middle" font-size="7.5" id="cl28"></text><text class="dt" x="593" y="684" text-anchor="middle" font-size="7" id="dt28"></text></g>
+      <g class="cg av" id="g29" onmouseenter="tip(event,29)" onmouseleave="ht()"><rect class="cb" x="684" y="590" width="150" height="118" rx="4"/><text class="cn" x="692" y="610" font-size="9">P-27</text><text class="st" x="759" y="630" text-anchor="middle" font-size="8">5-seater *</text><text class="lb" x="759" y="650" text-anchor="middle" font-size="8" id="lb29">Available</text><text class="cl" x="759" y="668" text-anchor="middle" font-size="7.5" id="cl29"></text><text class="dt" x="759" y="684" text-anchor="middle" font-size="7" id="dt29"></text></g>
+      <g class="cg av" id="g30" onmouseenter="tip(event,30)" onmouseleave="ht()"><rect class="cb" x="850" y="590" width="150" height="118" rx="4"/><text class="cn" x="858" y="610" font-size="9">P-28</text><text class="st" x="925" y="630" text-anchor="middle" font-size="8">2-seater *</text><text class="lb" x="925" y="650" text-anchor="middle" font-size="8" id="lb30">Available</text><text class="cl" x="925" y="668" text-anchor="middle" font-size="7.5" id="cl30"></text><text class="dt" x="925" y="684" text-anchor="middle" font-size="7" id="dt30"></text></g>
+      <g class="cg av" id="g31" onmouseenter="tip(event,31)" onmouseleave="ht()"><rect class="cb" x="20" y="724" width="150" height="118" rx="4"/><text class="cn" x="28" y="744" font-size="9">P-29</text><text class="st" x="95" y="764" text-anchor="middle" font-size="8">2-seater *</text><text class="lb" x="95" y="784" text-anchor="middle" font-size="8" id="lb31">Available</text><text class="cl" x="95" y="802" text-anchor="middle" font-size="7.5" id="cl31"></text><text class="dt" x="95" y="818" text-anchor="middle" font-size="7" id="dt31"></text></g>
+      <g class="cg av" id="g32" onmouseenter="tip(event,32)" onmouseleave="ht()"><rect class="cb" x="186" y="724" width="150" height="118" rx="4"/><text class="cn" x="194" y="744" font-size="9">P-26</text><text class="st" x="261" y="764" text-anchor="middle" font-size="8">open workspace · 30 seats</text><text class="lb" x="261" y="784" text-anchor="middle" font-size="8" id="lb32">Available</text><text class="cl" x="261" y="802" text-anchor="middle" font-size="7.5" id="cl32"></text><text class="dt" x="261" y="818" text-anchor="middle" font-size="7" id="dt32"></text></g>
+      <g class="cg av" id="g33" onmouseenter="tip(event,33)" onmouseleave="ht()"><rect class="cb" x="352" y="724" width="150" height="118" rx="4"/><text class="cn" x="360" y="744" font-size="9">P-30</text><text class="st" x="427" y="764" text-anchor="middle" font-size="8">open workspace · 21 seats</text><text class="lb" x="427" y="784" text-anchor="middle" font-size="8" id="lb33">Available</text><text class="cl" x="427" y="802" text-anchor="middle" font-size="7.5" id="cl33"></text><text class="dt" x="427" y="818" text-anchor="middle" font-size="7" id="dt33"></text></g>
+      <text x="20" y="854" font-size="8" fill="#c7c7cc">* estimated capacity — confirm and correct against the real layout, then tell me what to fix</text>
+      </svg>`
+  }
 };
-
-const EXT={
-
-  training:{label:'Training Room',key:'Training Room',cap:50},
-
-  auditorium:{label:'Auditorium',key:'Auditorium',cap:500},
-
-};
+// Tharamani's markup is written straight into the page (not built from a string, unlike the newer
+// locations) — capture it now, before any switchPlan() call has a chance to overwrite the DOM with
+// a different location's drawing.
+PLANS['tidel-omr'].svg=document.getElementById('planWrap').innerHTML;
 
 // Only used until the first availability response says which spaces are hourly.
-const HOURLY_LABELS=new Set(['C-23','C-24','C-25','Training Room','Auditorium']);
+const HOURLY_LABELS=new Set(['C-23','C-24','C-25','Training Room','Auditorium','Meeting Room 1','Meeting Room 2','Board Room','Conference Room']);
 const SLOT_START_MIN=9*60, SLOT_END_MIN=21*60, SLOT_STEP=30; // 9 AM – 9 PM, 30-min slots
 // The server decides (from the space's Workspace Type); the fixed list is only a fallback.
 function isHourly(label){const d=live[label];return d?!!d.hourly:HOURLY_LABELS.has(label);}
@@ -1184,7 +1274,7 @@ let live={}, sel=null;
 // ── LOCATION ──
 // A location is picked once for the whole page. Only locations with a drawing show the SVG floor plan;
 // the others get an auto-built grid from their inventory.
-const PLAN_LOCATIONS=new Set(['tidel-omr']);
+const PLAN_LOCATIONS=new Set(['tidel-omr','tidel-pat']);
 const FALLBACK_LOCATION={slug:'tidel-omr',label:'Tharamani',name:'Tidel Park',subtitle:'Tharamani, Chennai'};
 let LOCATIONS=[], LOC='', LOC_LABEL='';
 const hasPlan=()=>PLAN_LOCATIONS.has(LOC);
@@ -1504,7 +1594,7 @@ function setCabin(num,isOc,data){
 
   const dtEl=document.getElementById('dt'+num);
 
-  if(lbEl)lbEl.textContent=isOc?'Booked':(num<=8?'Avail':'Available');
+  if(lbEl)lbEl.textContent=isOc?'Booked':(CABINS[num]&&CABINS[num].small?'Avail':'Available');
 
   if(hourly){
 
@@ -1607,6 +1697,15 @@ document.getElementById('gridView').addEventListener('click',e=>{
 
 // ── LOCATION SWITCHING ──
 
+// Swaps in a location's own drawing and cabin data.
+let currentPlan=null;
+function switchPlan(loc){
+  const p=PLANS[loc];if(!p||currentPlan===loc)return;
+  document.getElementById('planWrap').innerHTML=p.svg;
+  CABINS=p.cabins;EXT=p.ext;currentPlan=loc;
+  document.getElementById('planLabelText').textContent=p.title;
+}
+
 function applyLocation(l,reload){
   LOC=l.slug;LOC_LABEL=l.label;
   try{localStorage.setItem('dc_loc',LOC);}catch(e){}
@@ -1615,8 +1714,9 @@ function applyLocation(l,reload){
   document.getElementById('locSel').value=LOC;
   document.getElementById('hloc').textContent=LOC_LABEL;
   const plan=hasPlan();
+  if(plan)switchPlan(LOC);
   document.getElementById('planCard').style.display=plan?'':'none';
-  document.getElementById('extSec').style.display=plan?'':'none';
+  document.getElementById('extSec').style.display=(plan&&Object.keys(EXT).length)?'':'none';
   document.getElementById('gridView').style.display=plan?'none':'';
   CT.setLocation(LOC,LOC_LABEL);
   if(reload){
@@ -1714,7 +1814,8 @@ function shiftBkMonth(dir){
 
 function bookingRowFromRaw(b){
   const hourly=typeof b.hourly==='boolean'?b.hourly:isHourly(b.cabin_number);
-  // CABINS describes Tharamani's drawing only; other locations' spaces are labelled by what the server sent.
+  // CABINS only exists for the current location's own drawing; a grid-only location has none, so its
+  // spaces are labelled by whatever the server sent instead.
   const cabinEntry=hasPlan()?Object.values(CABINS).find(c=>c.label===b.cabin_number):null;
   const type=cabinEntry?cabinEntry.type:b.cabin_number;
   const hasTime=!!(b.start_time&&b.end_time);
