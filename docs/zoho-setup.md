@@ -40,9 +40,9 @@ Report link name: `All_Contracts`.
 | `Contract_No` | Auto number | Prefix `DC-`, e.g. `DC-0001`. Make this the lookup display value. |
 | `Location_Master` | Lookup to Location Master | |
 | `Company_Name` | Single line | Required |
-| `Contact_Person` | Single line | Required |
-| `Contact_Phone` | Single line | Required |
-| `Contact_Email` | Email | Required. Renewal notices are sent here. |
+| `Contact_Person` | Single line | Optional — recommended |
+| `Contact_Phone` | Single line | Optional — recommended |
+| `Contact_Email` | Email | Optional — recommended. Renewal notices are sent here; a contract with no email gets no reminder email (only the team's overdue alert, once that's set up). |
 | `Start_Date` | Date | Required |
 | `End_Date` | Date | Required |
 | `Total_Seats` | Number | Written by the app (sum of cabins) |

@@ -223,9 +223,9 @@ function parseContractBody(body, catalogById) {
   }
 
   if (!f.company_name)   throw new HttpError(400, 'Company name is required')
-  if (!f.contact_person) throw new HttpError(400, 'Contact person is required')
-  if (!f.contact_phone)  throw new HttpError(400, 'Contact number is required')
-  if (!EMAIL_RE.test(f.contact_email)) throw new HttpError(400, 'A valid contact email is required')
+  // Contact person/phone/email are recommended (renewal notices need the email) but left optional so
+  // older contracts can be loaded now and filled in later.
+  if (f.contact_email && !EMAIL_RE.test(f.contact_email)) throw new HttpError(400, 'Contact email is not valid')
   if (!isISODate(f.start_date) || !isISODate(f.end_date)) throw new HttpError(400, 'Start and end dates are required')
   if (f.end_date <= f.start_date) throw new HttpError(400, 'End date must be after the start date')
   if (f.security_deposit < 0) throw new HttpError(400, 'Security deposit cannot be negative')

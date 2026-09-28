@@ -1,0 +1,53 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "static-preview",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8123",
+        "--directory",
+        "public"
+      ],
+      "port": 8123
+    },
+    {
+      "name": "repo-static",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8124",
+        "--directory",
+        "."
+      ],
+      "port": 8124
+    },
+    {
+      "name": "main-copy",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8125",
+        "--directory",
+        "C:/Users/Admin/AppData/Local/Temp/claude/C--Users-Admin-Documents-GitHub-dotcowork-inventory/8e533dd2-b1ca-430c-bce0-3797a158c232/scratchpad/main"
+      ],
+      "port": 8125
+    },
+    {
+      "name": "main-public",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8126",
+        "--directory",
+        "C:/Users/Admin/AppData/Local/Temp/claude/C--Users-Admin-Documents-GitHub-dotcowork-inventory/8e533dd2-b1ca-430c-bce0-3797a158c232/scratchpad/main/public"
+      ],
+      "port": 8126
+    }
+  ]
+}
