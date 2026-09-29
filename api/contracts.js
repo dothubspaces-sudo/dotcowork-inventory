@@ -342,6 +342,7 @@ async function insertContract(token, input, { renewedFrom, addOnTo }) {
     for (const l of input.lines) {
       const r = await creatorPost(`form/${cfg.LINE_FORM}`, {
         Contract: contractId, Inventory_Items: l.item_id, Seats: l.seats, Monthly_Price: l.monthly_price,
+        ...(input.location_id ? { Location_Master: input.location_id } : {}),
       }, token)
       if (r.code !== 3000 || !r.data || !r.data.ID) throw new Error(`Creator rejected a cabin line: ${JSON.stringify(r)}`)
       lineIds.push(r.data.ID)
@@ -356,7 +357,7 @@ async function insertContract(token, input, { renewedFrom, addOnTo }) {
 }
 
 // Add new cabins first, then update, then remove, so a mid-way failure leaves too many cabins, never too few.
-async function syncLines(token, state, contractId, wantedLines) {
+async function syncLines(token, state, contractId, wantedLines, locationId) {
   const existing = state.linesByContract[String(contractId)] || []
   const existingByItem = {}
   existing.forEach(l => { existingByItem[lookupId(l.Inventory_Items)] = l })
@@ -365,11 +366,15 @@ async function syncLines(token, state, contractId, wantedLines) {
   for (const l of wantedLines.filter(l => !existingByItem[l.item_id])) {
     const r = await creatorPost(`form/${cfg.LINE_FORM}`, {
       Contract: contractId, Inventory_Items: l.item_id, Seats: l.seats, Monthly_Price: l.monthly_price,
+      ...(locationId ? { Location_Master: locationId } : {}),
     }, token)
     if (r.code !== 3000) throw new HttpError(500, 'Creator rejected a cabin line', { detail: r })
   }
   for (const l of wantedLines.filter(l => existingByItem[l.item_id])) {
-    await patchRecord(token, cfg.LINE_REPORT, existingByItem[l.item_id].ID, { Seats: l.seats, Monthly_Price: l.monthly_price })
+    await patchRecord(token, cfg.LINE_REPORT, existingByItem[l.item_id].ID, {
+      Seats: l.seats, Monthly_Price: l.monthly_price,
+      ...(locationId ? { Location_Master: locationId } : {}),
+    })
   }
   for (const l of existing.filter(l => !wantedIds.has(lookupId(l.Inventory_Items)))) {
     const r = await creatorDelete(`report/${cfg.LINE_REPORT}/${l.ID}`, token)
@@ -447,7 +452,7 @@ async function updateContract(req, res, token, id) {
     lines: input.lines, start: input.fields.start_date, end: input.fields.end_date, excludeContractId: id,
   })
 
-  await syncLines(token, state, id, input.lines)
+  await syncLines(token, state, id, input.lines, input.location_id)
   const payload = contractPayload(input)
   // A moved end date (e.g. an informal extension) restarts the renewal cycle so the next 30-day notice still goes out.
   if (fromCreatorDate(existing.End_Date) !== input.fields.end_date) payload.Renewal_Status = 'Not Due'
