@@ -1627,6 +1627,55 @@ function applyAll(){
 
 }
 
+// Wraps a client name / date line inside its cabin box instead of letting it overflow. Measures with
+// the real font (getComputedTextLength), so it works for any box size and any location's drawing.
+function fitSvgText(el,text,{maxLines=2,padding=8,lineHeight=11,extraY=0}={}){
+  if(!el)return;
+  el.textContent='';
+  while(el.lastElementChild)el.removeChild(el.lastElementChild);
+  if(!text)return;
+  const g=el.closest('.cg');
+  const rect=g&&g.querySelector('.cb');
+  if(!rect){el.textContent=text;return;}
+  const boxW=parseFloat(rect.getAttribute('width'))||0;
+  const boxBottom=parseFloat(rect.getAttribute('y'))+ (parseFloat(rect.getAttribute('height'))||0);
+  const baseY=(el.dataset.baseY?parseFloat(el.dataset.baseY):parseFloat(el.getAttribute('y')))+extraY*lineHeight;
+  if(!el.dataset.baseY)el.dataset.baseY=parseFloat(el.getAttribute('y'));
+  const maxWidth=Math.max(boxW-padding,10);
+  const roomLines=Math.max(1,Math.floor((boxBottom-baseY)/lineHeight)+1);
+  const cap=Math.max(1,Math.min(maxLines,roomLines));
+  const measure=s=>{el.textContent=s;return el.getComputedTextLength();};
+  const words=String(text).split(/\s+/).filter(Boolean);
+  const lines=[];
+  let line='';
+  for(const w of words){
+    const test=line?line+' '+w:w;
+    if(measure(test)>maxWidth&&line){
+      lines.push(line);
+      line=w;
+      if(lines.length===cap)break;
+    }else{
+      line=test;
+    }
+  }
+  if(lines.length<cap){
+    if(line)lines.push(line);
+  }else if(line){
+    let t=line;
+    while(measure(t+'…')>maxWidth&&t.length>1)t=t.slice(0,-1);
+    lines.push(t+'…');
+  }
+  el.textContent='';
+  lines.forEach((l,i)=>{
+    const ts=document.createElementNS('http://www.w3.org/2000/svg','tspan');
+    ts.setAttribute('x',el.getAttribute('x'));
+    ts.setAttribute('y',baseY+i*lineHeight);
+    ts.textContent=l;
+    el.appendChild(ts);
+  });
+  return lines.length;
+}
+
 function setCabin(num,isOc,data){
 
   const g=document.getElementById('g'+num);if(!g)return;
@@ -1674,15 +1723,13 @@ function setCabin(num,isOc,data){
     const daySlots=(data&&data.slots?data.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
     const first=daySlots[0];
 
-    if(clEl)clEl.textContent=first?slotWho(first):'';
-
-    if(dtEl)dtEl.textContent=first?slotWhen(first)+(daySlots.length>1?` +${daySlots.length-1} more`:''):'';
+    const clLines=fitSvgText(clEl,first?slotWho(first):'')||0;
+    fitSvgText(dtEl,first?slotWhen(first)+(daySlots.length>1?` +${daySlots.length-1} more`:''):'',{maxLines:1,extraY:Math.max(0,clLines-1)});
 
   }else{
 
-    if(clEl)clEl.textContent=isOc&&data?.client?data.client:'';
-
-    if(dtEl)dtEl.textContent=isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'';
+    const clLines=fitSvgText(clEl,isOc&&data?.client?data.client:'')||0;
+    fitSvgText(dtEl,isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'',{maxLines:1,extraY:Math.max(0,clLines-1)});
 
   }
 
