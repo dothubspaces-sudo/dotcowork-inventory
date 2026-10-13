@@ -89,7 +89,7 @@ function renderCards(){
     warn.style.display='';
     warn.innerHTML=`<b>${di.count} contract${di.count===1?'':'s'} ${di.count===1?'has':'have'} a start or end date the app can't read</b>, so they're not counted as current or expired. Raw values from Zoho: `+
       di.samples.map(x=>`${esc(x.contract_no||x.company)} → start “${esc(x.start)||'(empty)'}”, end “${esc(x.end)||'(empty)'}”`).join('; ')+
-      (di.samples.every(x=>!x.start&&!x.end)?`<br><span class="ct-sub">Both are empty, so the field names in Zoho may not be Start_Date / End_Date. Fields returned: ${esc(di.fields_seen.join(', '))}</span>`:'');
+      `<br><span class="ct-sub">Fields Zoho returns for a contract: ${esc(di.fields_seen.join(', '))}</span>`;
   }else warn.style.display='none';
 
   const s=data.summary;

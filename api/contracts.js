@@ -86,6 +86,14 @@ function derivePhase(status, start, end, today) {
   return daysBetween(today, end) <= cfg.EXPIRING_DAYS ? 'expiring' : 'active'
 }
 
+// The date column by its expected name, else the closest-named one (an import can map a column to a
+// slightly different field name than the form spec's).
+function dateField(c, name, pattern) {
+  if (c[name] != null && c[name] !== '') return c[name]
+  const key = Object.keys(c).find(k => pattern.test(k) && !/^(ID|Added_|Modified_)/.test(k) && c[k])
+  return key ? c[key] : ''
+}
+
 function shapeContract(c, rawLines, itemsById, today) {
   const cabins = rawLines.map(l => {
     const item = itemsById[lookupId(l.Inventory_Items)] || {}
@@ -98,8 +106,10 @@ function shapeContract(c, rawLines, itemsById, today) {
     }
   })
   const firstItem = cabins.length ? itemsById[cabins[0].item_id] : null
-  const start = fromCreatorDate(c.Start_Date)
-  const end = fromCreatorDate(c.End_Date)
+  const rawStart = dateField(c, 'Start_Date', /start|begin|from/i)
+  const rawEnd = dateField(c, 'End_Date', /(^|_)(end|expiry|expire|expiration|to)(_|$)/i)
+  const start = fromCreatorDate(rawStart)
+  const end = fromCreatorDate(rawEnd)
   const status = c.Status || 'Active'
   return {
     id:                     String(c.ID),
@@ -124,7 +134,7 @@ function shapeContract(c, rawLines, itemsById, today) {
     notes:                  text(c.Notes),
     cabins,
     days_to_expiry:         end ? daysBetween(today, end) : null,
-    raw_dates:              { start: text(c.Start_Date), end: text(c.End_Date) },
+    raw_dates:              { start: text(rawStart), end: text(rawEnd) },
     phase:                  derivePhase(status, start, end, today),
   }
 }
