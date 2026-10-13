@@ -79,6 +79,8 @@ function buildCatalog(items) {
 // Only Active/Terminated is stored in Creator; everything time-based is derived so it can't go stale.
 function derivePhase(status, start, end, today) {
   if (status === 'Terminated') return 'terminated'
+  // A contract whose dates couldn't be read is not "expired" — it's undated, and flagged to the team.
+  if (!start || !end) return 'undated'
   if (start > today) return 'upcoming'
   if (end < today) return 'expired'
   return daysBetween(today, end) <= cfg.EXPIRING_DAYS ? 'expiring' : 'active'
@@ -122,6 +124,7 @@ function shapeContract(c, rawLines, itemsById, today) {
     notes:                  text(c.Notes),
     cabins,
     days_to_expiry:         end ? daysBetween(today, end) : null,
+    raw_dates:              { start: text(c.Start_Date), end: text(c.End_Date) },
     phase:                  derivePhase(status, start, end, today),
   }
 }
@@ -196,6 +199,13 @@ async function listContracts(req, res, token) {
   }
 
   const cabins = withOccupancy(catalog, contracts)
+  // Contracts whose start/end date couldn't be read: show the raw values so the format can be fixed.
+  const undated = contracts.filter(c => c.phase === 'undated')
+  const date_issues = undated.length ? {
+    count: undated.length,
+    samples: undated.slice(0, 5).map(c => ({ contract_no: c.contract_no, company: c.company_name, start: c.raw_dates.start, end: c.raw_dates.end })),
+    fields_seen: Object.keys(state.contracts[0] || {}),
+  } : null
   return res.status(200).json({
     status:    'success',
     today,
@@ -203,6 +213,7 @@ async function listContracts(req, res, token) {
     contracts,
     cabins,
     summary:   summarize(contracts, cabins),
+    ...(date_issues ? { date_issues } : {}),
     ...(catalogAll.length ? {} : { diagnostics: catalogDiagnostics(state.items) }),
   })
 }

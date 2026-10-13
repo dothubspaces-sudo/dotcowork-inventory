@@ -82,6 +82,16 @@ function render(){
 }
 
 function renderCards(){
+  let warn=document.getElementById('ctDateWarn');
+  if(!warn){warn=document.createElement('div');warn.id='ctDateWarn';warn.className='ct-warn-note';warn.style.cssText='margin:0 0 12px;padding:10px 14px;border-radius:10px;display:none';$('cards').parentNode.insertBefore(warn,$('cards'));}
+  const di=data.date_issues;
+  if(di){
+    warn.style.display='';
+    warn.innerHTML=`<b>${di.count} contract${di.count===1?'':'s'} ${di.count===1?'has':'have'} a start or end date the app can't read</b>, so they're not counted as current or expired. Raw values from Zoho: `+
+      di.samples.map(x=>`${esc(x.contract_no||x.company)} → start “${esc(x.start)||'(empty)'}”, end “${esc(x.end)||'(empty)'}”`).join('; ')+
+      (di.samples.every(x=>!x.start&&!x.end)?`<br><span class="ct-sub">Both are empty, so the field names in Zoho may not be Start_Date / End_Date. Fields returned: ${esc(di.fields_seen.join(', '))}</span>`:'');
+  }else warn.style.display='none';
+
   const s=data.summary;
   const pct=s.cabins_total?Math.round(s.cabins_occupied/s.cabins_total*100):0;
   // Occupancy view only: no revenue totals here. Vacant means free today (an expired-but-unactioned cabin isn't counted).
@@ -148,6 +158,7 @@ function phaseBadge(c){
     case 'expiring':return '<span class="ct-badge ct-b-expiring">Expiring</span>';
     case 'expired':return '<span class="ct-badge ct-b-expired">Expired</span>';
     case 'upcoming':return '<span class="ct-badge ct-b-upcoming">Upcoming</span>';
+    case 'undated':return '<span class="ct-badge ct-b-expired">Dates unreadable</span>';
     default:return '<span class="ct-badge ct-b-terminated">Terminated</span>';
   }
 }
@@ -155,6 +166,7 @@ function phaseBadge(c){
 function daysLeft(c){
   if(c.phase==='terminated')return `<span class="ct-sub">${c.terminated_on?fmtDate(c.terminated_on):''}</span>`;
   if(c.phase==='upcoming')return `starts in ${diffDays(data.today,c.start_date)}d`;
+  if(c.phase==='undated')return '<span class="ct-sub">no start/end date</span>';
   const d=c.days_to_expiry;
   if(d<0)return `<span class="ct-days-bad">${-d}d ago</span>`;
   return `<span class="${d<=7?'ct-days-bad':(d<=30?'ct-days-warn':'')}">${d}d left</span>`;
