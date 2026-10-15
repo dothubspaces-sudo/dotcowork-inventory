@@ -1,6 +1,6 @@
 const { isAuthed } = require('../lib/auth.js');
 const { getAccessToken, creatorGetAll } = require('./zoho.js');
-const { toCreatorDate, fromCreatorDate, isISODate } = require('../lib/dates.js');
+const { toCreatorDate, fromCreatorDate, isISODate, todayISO } = require('../lib/dates.js');
 const { classify, isOpenWorkspace, capacityOf, nameOf, locationOf } = require('../lib/spaces.js');
 const cfg = require('../lib/config.js');
 
@@ -195,19 +195,34 @@ const bookingFields = b => ({
   pax:           b.pax,
   booking_start: b.booking_start,
   booking_end:   b.booking_end,
+  ...(b.overdue ? { overdue: true } : {}),
 });
 
 // Long-term contracts occupy cabins on the floor plan. If the Contracts forms aren't set up in
 // Creator yet (or Creator errors), the floor plan must keep working, so failures are logged and skipped.
 async function loadContractRows(token, startDate, endDate) {
   try {
-    const criteria = encodeURIComponent(
-      `Status == "Active" && Start_Date <= "${toCreatorDate(endDate)}" && End_Date >= "${toCreatorDate(startDate)}"`
-    );
-    const [contracts, lines] = await Promise.all([
-      creatorGetAll(`report/${cfg.CONTRACT_REPORT}?criteria=${criteria}`, token),
+    const [all, lines] = await Promise.all([
+      creatorGetAll(`report/${cfg.CONTRACT_REPORT}`, token),
       creatorGetAll(`report/${cfg.LINE_REPORT}`, token),
     ]);
+    // Filtered here (not in Creator criteria) so any date format Creator returns is understood, and a
+    // contract with no Status counts as Active, as it does on the Contracts tab.
+    const today = todayISO();
+    const contracts = [];
+    all.forEach(c => {
+      if ((c.Status || 'Active') === 'Terminated') return;
+      const s = fromCreatorDate(c.Start_Date);
+      const e = fromCreatorDate(c.End_Date);
+      if (!s || !e) return;
+      if (s <= endDate && e >= startDate) { contracts.push(c); return; }
+      // Ended but never renewed, declined or terminated: the client is still in the cabin until the team
+      // acts on it, so it stays held (flagged as expired) rather than showing as free.
+      const renewal = c.Renewal_Status || 'Not Due';
+      if (e < startDate && e < today && (renewal === 'Not Due' || renewal === 'Notice Sent')) {
+        contracts.push({ ...c, __overdue: true });
+      }
+    });
     return { contracts, lines };
   } catch (err) {
     console.error('contracts overlay skipped:', err.message);
@@ -229,7 +244,7 @@ function mapContractOccupancy({ contracts, lines }, itemById) {
     const seats = Number(l.Seats) || 0;
     const entry = (out[String(item.ID)] ||= { seatsLeased: 0, contracts: [] });
     entry.seatsLeased += seats;
-    entry.contracts.push({ company: c.Company_Name || "", start: c.Start_Date || "", end: c.End_Date || "", seats });
+    entry.contracts.push({ company: c.Company_Name || "", start: c.Start_Date || "", end: c.End_Date || "", seats, overdue: !!c.__overdue });
   });
   return out;
 }
@@ -240,7 +255,11 @@ function contractBooking(entry, open) {
   const byStartDesc = entry.contracts.slice().sort((a, b) => fromCreatorDate(b.start).localeCompare(fromCreatorDate(a.start)));
   const latest = byStartDesc[0];
   if (!open) {
-    return { id: "", client: latest.company, purpose: "Long-term contract", pax: latest.seats, booking_start: latest.start, booking_end: latest.end };
+    return {
+      id: "", client: latest.company, pax: latest.seats, booking_start: latest.start, booking_end: latest.end,
+      purpose: latest.overdue ? "Contract expired — renewal pending" : "Long-term contract",
+      ...(latest.overdue ? { overdue: true } : {}),
+    };
   }
   const byStart = byStartDesc.slice().reverse();
   const byEnd = entry.contracts.slice().sort((a, b) => fromCreatorDate(b.end).localeCompare(fromCreatorDate(a.end)));

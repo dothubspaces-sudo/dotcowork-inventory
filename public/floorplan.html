@@ -1761,7 +1761,7 @@ function setCabin(num,isOc,data){
   }else{
 
     const clLines=fitSvgText(clEl,isOc&&data?.client?data.client:'')||0;
-    fitSvgText(dtEl,isOc&&data?.booking_end?'until '+fmtFull(data.booking_end):'',{maxLines:1,extraY:Math.max(0,clLines-1)});
+    fitSvgText(dtEl,isOc&&data?.booking_end?(data.overdue?'expired ':'until ')+fmtFull(data.booking_end):'',{maxLines:1,extraY:Math.max(0,clLines-1)});
 
   }
 
@@ -1821,7 +1821,7 @@ function gridCard(s){
   }else if(s.open_workspace){
     who=`${s.seats_leased||0} / ${s.capacity} seats leased`;
   }else if(booked&&s.client){
-    who=escHtml(s.client)+(s.booking_end?'<br>until '+escHtml(fmtFull(s.booking_end)):'');
+    who=escHtml(s.client)+(s.booking_end?'<br>'+(s.overdue?'expired ':'until ')+escHtml(fmtFull(s.booking_end)):'');
   }
   const seats=Number(s.capacity)||0;
   // Open workspace is leased by seats under Contracts, so it isn't booked from here.
