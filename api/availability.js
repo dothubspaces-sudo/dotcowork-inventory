@@ -1,5 +1,5 @@
 const { isAuthed } = require('../lib/auth.js');
-const { getAccessToken, creatorGetAll } = require('./zoho.js');
+const { getAccessToken, creatorGetAll, creatorGet } = require('./zoho.js');
 const { toCreatorDate, fromCreatorDate, isISODate, todayISO } = require('../lib/dates.js');
 const { classify, isOpenWorkspace, capacityOf, nameOf, locationOf } = require('../lib/spaces.js');
 const cfg = require('../lib/config.js');
@@ -58,6 +58,12 @@ module.exports = async function handler(req, res) {
     );
     const bookings = bookingsData.data || [];
     // TEMPORARY diagnostic: which columns does the bookings report return? (names only, no values)
+    if (req.query.debug === 'v21' && /^\d+$/.test(String(req.query.id || ''))) {
+      const id = String(req.query.id);
+      const a = await creatorGet(`report/All_Spaces?criteria=${encodeURIComponent(`ID == ${id}`)}&limit=1`, token);
+      const b = await creatorGet(`report/All_Spaces/${id}`, token);
+      return res.status(200).json({ criteria_read: a, by_id_read: b });
+    }
     if (req.query.debug === 'fields') return res.status(200).json({ booking_fields: Object.keys(bookings[0] || {}), item_fields: Object.keys(itemsData.data && itemsData.data[0] || {}) });
     const itemById = {};
     const itemByName = {};
