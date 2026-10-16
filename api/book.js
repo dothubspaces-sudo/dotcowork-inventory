@@ -1,4 +1,4 @@
-const { getAccessToken, creatorGet, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
+const { getAccessToken, creatorGetAll, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 const { classify, nameOf, locationOf } = require('../lib/spaces.js')
 
@@ -44,25 +44,24 @@ function parseTimeToMinutes(t) {
 // The space being booked. Cabin numbers repeat across locations, so the item ID is what identifies it.
 // A cabin number (plus location) is still accepted for callers that don't have the ID.
 async function findItem(token, { item_id, cabin_number, location }) {
+  if (item_id && !/^\d+$/.test(String(item_id))) return { error: { status: 400, message: 'Invalid space' } }
+  // Read through the same whole-report read the floor plan uses: it returns every column (location, type,
+  // seats...), where a single-record read can leave out fields that aren't in the report's quick view.
+  const items = await creatorGetAll('report/Inventory_Items_Report', token)
+
   if (item_id) {
-    if (!/^\d+$/.test(String(item_id))) return { error: { status: 400, message: 'Invalid space' } }
-    const data = await creatorGet(
-      `report/Inventory_Items_Report?criteria=${encodeURIComponent(`ID == ${item_id}`)}&limit=1`, token
-    )
-    const item = (data.data || [])[0]
+    const item = items.find(i => String(i.ID) === String(item_id))
     return item ? { item } : { error: { status: 404, message: 'That space was not found' } }
   }
 
-  if (/["\\]/.test(cabin_number)) return { error: { status: 400, message: 'Invalid cabin number' } }
-  const data = await creatorGet(
-    `report/Inventory_Items_Report?criteria=${encodeURIComponent(`Cabin_Number == "${cabin_number}"`)}&limit=50`, token
-  )
-  let matches = data.data || []
+  let matches = items.filter(i => nameOf(i) === String(cabin_number))
   if (location) matches = matches.filter(i => locationOf(i).slug.toLowerCase() === String(location).toLowerCase())
   if (!matches.length) return { error: { status: 404, message: `No inventory item found for: ${cabin_number}` } }
   if (matches.length > 1) return { error: { status: 409, message: `${cabin_number} exists in more than one location; choose the location.` } }
   return { item: matches[0] }
 }
+
+const refId = v => (v && typeof v === 'object') ? String(v.ID || '') : (v == null ? '' : String(v))
 
 module.exports = async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*')
@@ -135,13 +134,15 @@ module.exports = async function handler(req, res) {
       }
     }
 
-    let criteria = `Inventory_Items == ${inventoryItemId} && Booking_Start <= "${toCreatorDate(booking_end)}" && Booking_End >= "${toCreatorDate(booking_start)}"`
-    if (isEdit) criteria += ` && ID != ${booking_id}`
-    const conflictData = await creatorGet(
-      `report/All_Spaces?criteria=${encodeURIComponent(criteria)}&limit=${isHourly ? 50 : 1}`,
+    // Bookings overlapping these dates (same ISO-date criteria the floor plan reads with), then narrowed to
+    // this space in code. When editing, the booking being edited doesn't conflict with itself.
+    const overlapping = await creatorGetAll(
+      `report/${BOOKINGS_REPORT}?criteria=${encodeURIComponent(`Booking_Start <= "${booking_end}" && Booking_End >= "${booking_start}"`)}`,
       token
     )
-    const conflicts = conflictData.data || []
+    const conflicts = overlapping.filter(b =>
+      refId(b.Inventory_Items) === String(inventoryItemId) && !(isEdit && String(b.ID) === String(booking_id))
+    )
 
     if (isHourly) {
       let clash = null
