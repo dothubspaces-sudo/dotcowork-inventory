@@ -57,6 +57,8 @@ module.exports = async function handler(req, res) {
       !wantedLocation || locationOf(i).slug.toLowerCase() === wantedLocation
     );
     const bookings = bookingsData.data || [];
+    // TEMPORARY diagnostic: which columns does the bookings report return? (names only, no values)
+    if (req.query.debug === 'fields') return res.status(200).json({ booking_fields: Object.keys(bookings[0] || {}), item_fields: Object.keys(itemsData.data && itemsData.data[0] || {}) });
     const itemById = {};
     const itemByName = {};
     items.forEach(i => {
