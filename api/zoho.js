@@ -15,7 +15,12 @@ async function getAccessToken() {
   })
   const res  = await fetch(TOKEN_URL, { method: 'POST', body: params })
   const data = await res.json()
-  if (!data.access_token) throw new Error('Failed to get Zoho access token')
+  if (!data.access_token) {
+    // Zoho's own reason (invalid_code, invalid_client, ...) — never the credentials themselves.
+    const why = data.error || data.message || `HTTP ${res.status}`
+    console.error('Zoho token refresh failed:', JSON.stringify({ error: data.error, message: data.message }))
+    throw new Error(`Failed to get Zoho access token (${why})`)
+  }
   cachedToken = data.access_token
   tokenExpiry  = Date.now() + 50 * 60 * 1000
   return cachedToken
