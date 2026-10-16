@@ -64,6 +64,11 @@ module.exports = async function handler(req, res) {
       const b = await creatorGet(`report/All_Spaces/${id}`, token);
       return res.status(200).json({ criteria_read: a, by_id_read: b });
     }
+    if (req.query.debug === 'meta') {
+      const r = await fetch('https://www.zohoapis.com/creator/v2.1/meta/dotcowork/workspace-inventory-manager/form/Space_Bookings/fields', { headers });
+      const j = await r.json();
+      return res.status(200).json({ code: j.code, message: j.message, fields: (j.fields || []).map(f => ({ link: f.link_name, type: f.type, display: f.display_name })) });
+    }
     if (req.query.debug === 'fields') return res.status(200).json({ booking_fields: Object.keys(bookings[0] || {}), item_fields: Object.keys(itemsData.data && itemsData.data[0] || {}) });
     const itemById = {};
     const itemByName = {};
