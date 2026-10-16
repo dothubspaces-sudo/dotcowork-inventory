@@ -1737,7 +1737,9 @@ function setCabin(num,isOc,data){
 
   g.className='cg '+(isOc?'oc':'av');
 
-  g.onclick=isOc?null:(hourly?()=>openSlotModal(label,CABINS[num],label):()=>openModal(label,CABINS[num]));
+  // An hourly room always opens its time slots, even when it's fully booked today: that's how the team sees
+  // which times are taken and can look at other days. Cabins are only clickable while free.
+  g.onclick=hourly?()=>openSlotModal(label,CABINS[num],label):(isOc?null:()=>openModal(label,CABINS[num]));
 
   // Directly style the rect so SVG colour always updates
 
@@ -2076,6 +2078,7 @@ async function doCancel(id,btn,msgEl){
     if(document.getElementById('bookingsView').style.display!=='none')await loadBookingsMonth();
   }catch(e){
     if(msgEl){msgEl.className='mmsg err';msgEl.textContent=e.message||'Failed to cancel booking';}
+    else alert(e.message||'Failed to cancel booking'); // cancelled from the Bookings table: no modal to show it in
     if(btn){
       const orig=btn._origText||'Cancel';
       btn.textContent='Failed — retry';

@@ -1,4 +1,4 @@
-const { getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
+const { getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete, creatorRejection } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 const { toCreatorDate, fromCreatorDate, isISODate, todayISO, daysBetween } = require('../lib/dates.js')
 const { classify, isOpenWorkspace, capacityOf, nameOf, locationOf } = require('../lib/spaces.js')
@@ -341,7 +341,7 @@ async function assertNoConflicts(token, catalogById, state, { lines, start, end,
 
 async function patchRecord(token, report, id, payload) {
   const r = await creatorPatch(`report/${report}/${id}`, payload, token)
-  if (r.code !== 3000) throw new HttpError(500, 'Creator rejected the update', { detail: r })
+  if (r.code !== 3000) throw new HttpError(500, creatorRejection(r, 'Creator rejected the update'), { detail: r })
 }
 
 async function insertContract(token, input, { renewedFrom, addOnTo }) {
@@ -399,7 +399,7 @@ async function syncLines(token, state, contractId, wantedLines, locationId) {
   }
   for (const l of existing.filter(l => !wantedIds.has(lookupId(l.Inventory_Items)))) {
     const r = await creatorDelete(`report/${cfg.LINE_REPORT}/${l.ID}`, token)
-    if (r.code !== 3000) throw new HttpError(500, 'Creator rejected removing a cabin', { detail: r })
+    if (r.code !== 3000) throw new HttpError(500, creatorRejection(r, 'Creator rejected removing a cabin'), { detail: r })
   }
 }
 

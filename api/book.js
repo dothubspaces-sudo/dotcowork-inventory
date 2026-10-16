@@ -1,4 +1,4 @@
-const { getAccessToken, creatorGetAll, creatorPost, creatorPatch, creatorDelete } = require('./zoho.js')
+const { getAccessToken, creatorGetAll, creatorPost, creatorPatch, creatorDelete, creatorRejection } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 const { classify, nameOf, locationOf } = require('../lib/spaces.js')
 
@@ -80,7 +80,7 @@ module.exports = async function handler(req, res) {
       if (result.code === 3000) {
         return res.status(200).json({ status: 'success', message: 'Booking cancelled' })
       }
-      return res.status(500).json({ error: 'Creator rejected the cancellation', detail: result })
+      return res.status(500).json({ error: creatorRejection(result, 'Creator rejected the cancellation'), detail: result })
     } catch (err) {
       console.error('book.js delete error:', err)
       return res.status(500).json({ error: err.message })
@@ -189,7 +189,7 @@ module.exports = async function handler(req, res) {
       if (result.code === 3000) {
         return res.status(200).json({ status: 'success', message: `Booking updated for ${spaceName}`, id: booking_id })
       }
-      return res.status(500).json({ error: 'Creator rejected the update', detail: result })
+      return res.status(500).json({ error: creatorRejection(result, 'Creator rejected the update'), detail: result })
     }
 
     const result = await creatorPost('form/Space_Bookings', payload, token)

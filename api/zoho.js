@@ -98,4 +98,13 @@ async function creatorDelete(path, token) {
   return result
 }
 
-module.exports = { getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete }
+// Creator answers 2945 when the API token wasn't generated with the scope the call needs (e.g. the token can
+// read and create but not update or delete). Say that plainly instead of a generic "rejected".
+function creatorRejection(result, fallback) {
+  if (result && result.code === 2945) {
+    return 'Zoho has not given this app permission to change or delete records (the API token is missing the ZohoCreator.report.UPDATE / ZohoCreator.report.DELETE scopes). The admin needs to regenerate the Zoho token with those scopes: see docs/zoho-setup.md.'
+  }
+  return fallback
+}
+
+module.exports = { creatorRejection, getAccessToken, creatorGet, creatorGetAll, creatorPost, creatorPatch, creatorDelete }

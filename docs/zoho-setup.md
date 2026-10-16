@@ -31,6 +31,20 @@ ZohoCreator.report.DELETE
 If it was generated with only read/create, edits and cancellations fail with an authorization error and a
 new refresh token with these scopes is needed.
 
+### Regenerating the refresh token
+
+Zoho answers code `2945` ("invalid oauthscope") when the token is missing a scope. To fix it:
+
+1. Open the Zoho API Console (api-console.zoho.com), the same **Self Client** the app already uses.
+2. **Generate Code** tab: scope `ZohoCreator.form.CREATE,ZohoCreator.report.READ,ZohoCreator.report.UPDATE,ZohoCreator.report.DELETE`,
+   time duration 10 minutes, any description, then **Create** and copy the code.
+3. Within 10 minutes, exchange the code for a refresh token (the client id and secret are the ones already in Vercel):
+   `POST https://accounts.zoho.com/oauth/v2/token` with form fields `grant_type=authorization_code`, `client_id`,
+   `client_secret`, `code`. The response contains a `refresh_token`.
+4. In Vercel, replace `ZOHO_REFRESH_TOKEN` (Production and Preview) with it and redeploy.
+
+Do not paste the code, secret or token into chat or commit them.
+
 ## 3. Form `Contracts`
 
 Report link name: `All_Contracts`.
