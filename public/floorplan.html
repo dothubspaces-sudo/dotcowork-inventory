@@ -1016,9 +1016,9 @@ svg#fp{display:block;width:100%;height:auto}
 
       <div class="frow2" id="timeFieldsRow" style="display:none">
 
-        <div class="frow" style="margin-bottom:0"><label>Start Time</label><input class="flocked" id="f-start-time" type="text" readonly/></div>
+        <div class="frow" style="margin-bottom:0"><label>Start Time</label><select id="f-start-time"></select></div>
 
-        <div class="frow" style="margin-bottom:0"><label>End Time</label><input class="flocked" id="f-end-time" type="text" readonly/></div>
+        <div class="frow" style="margin-bottom:0"><label>End Time</label><select id="f-end-time"></select></div>
 
       </div>
 
@@ -2197,21 +2197,21 @@ function openModal(title,data,timeCtx,editRecord){
 
   if(timeCtx){
 
+    // An hourly booking is one day with a start and end time. Booking a slot picked in the grid keeps its
+    // date and times fixed; editing an existing booking lets the date and both times be changed.
+    const editing=!!editRecord;
+    const st=timeCtx.startTime||(editing?'09:00':''), et=timeCtx.endTime||(editing?'21:00':''); // an old all-day booking is 9 AM–9 PM
     startInput.value=timeCtx.date;endInput.value=timeCtx.date;
-
-    startInput.readOnly=true;endInput.readOnly=true;
-
-    startInput.classList.add('flocked');endInput.classList.add('flocked');
-
-    document.getElementById('f-start-time').value=hhmmLabel(timeCtx.startTime);
-
-    document.getElementById('f-end-time').value=hhmmLabel(timeCtx.endTime);
+    startInput.readOnly=!editing;startInput.classList.toggle('flocked',!editing);
+    endInput.readOnly=true;endInput.classList.add('flocked');
+    startInput.oninput=()=>{endInput.value=startInput.value;};
+    fillTimeSelects(st,et,!editing);
 
     timeRow.style.display='';
 
   }else{
 
-    startInput.readOnly=false;endInput.readOnly=false;
+    startInput.readOnly=false;endInput.readOnly=false;startInput.oninput=null;
 
     startInput.classList.remove('flocked');endInput.classList.remove('flocked');
 
@@ -2255,7 +2255,7 @@ async function submitBooking(){
 
   const start=document.getElementById('f-start').value;
 
-  const end=document.getElementById('f-end').value;
+  const end=sel.timeCtx?start:document.getElementById('f-end').value; // an hourly booking is a single day
 
   const purpose=document.getElementById('f-purpose').value;
 
@@ -2271,6 +2271,8 @@ async function submitBooking(){
 
   if(end<start){msg.className='mmsg err';msg.textContent='End date must be after start date.';return;}
 
+  if(sel.timeCtx&&document.getElementById('f-start-time').value>=document.getElementById('f-end-time').value){msg.className='mmsg err';msg.textContent='End time must be after the start time.';return;}
+
   if(!purpose){msg.className='mmsg err';msg.textContent='Select a purpose.';return;}
 
   const isEdit=!!sel.editingId;
@@ -2279,7 +2281,7 @@ async function submitBooking(){
 
   const body={item_id:sel.itemId||undefined,cabin_number:sel.cabinNum,location:LOC,client_name:client,booking_start:start,booking_end:end,purpose,total_pax:parseInt(pax)||0};
 
-  if(sel.timeCtx){body.start_time=sel.timeCtx.startTime;body.end_time=sel.timeCtx.endTime;}
+  if(sel.timeCtx){body.start_time=document.getElementById('f-start-time').value;body.end_time=document.getElementById('f-end-time').value;}
 
   if(isEdit)body.booking_id=sel.editingId;
 
@@ -2313,6 +2315,18 @@ async function submitBooking(){
 
 function slotLabel(mins){const ap=mins>=720?'PM':'AM';let h12=Math.floor(mins/60)%12;if(h12===0)h12=12;const m=mins%60;return m===0?`${h12} ${ap}`:`${h12}:${String(m).padStart(2,'0')} ${ap}`;}
 function hhmm(mins){return String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0');}
+// 30-minute options between opening and closing time; a time already on a booking that isn't on the grid
+// (e.g. 10:15) is kept as an extra option so editing other fields doesn't silently change it.
+function fillTimeSelects(startVal,endVal,locked){
+  const fill=(el,from,to,val)=>{
+    const opts=[];for(let m=from;m<=to;m+=SLOT_STEP)opts.push(hhmm(m));
+    if(val&&!opts.includes(val))opts.push(val),opts.sort();
+    el.innerHTML=opts.map(v=>`<option value="${v}">${slotLabel(parseHM(v))}</option>`).join('');
+    el.value=val;el.disabled=locked;el.classList.toggle('flocked',locked);
+  };
+  fill(document.getElementById('f-start-time'),SLOT_START_MIN,SLOT_END_MIN-SLOT_STEP,startVal);
+  fill(document.getElementById('f-end-time'),SLOT_START_MIN+SLOT_STEP,SLOT_END_MIN,endVal);
+}
 function parseHM(s){const[h,m]=s.split(':').map(Number);return h*60+(m||0);}
 function hhmmLabel(s){return slotLabel(parseHM(s));}
 
