@@ -18,17 +18,33 @@ The existing `ZOHO_CLIENT_ID`, `ZOHO_CLIENT_SECRET` and `ZOHO_REFRESH_TOKEN` sta
 
 ## 2. API scopes on the Zoho refresh token
 
-Editing and cancelling bookings and everything in Contracts need more than read/create. The refresh token
-must include:
+Request **every** scope below once, so the token never has to be regenerated as features are added.
+Zoho Creator (all of its API scopes; this is what the app needs today):
 
 ```
-ZohoCreator.form.CREATE
-ZohoCreator.report.READ
-ZohoCreator.report.UPDATE
-ZohoCreator.report.DELETE
+ZohoCreator.form.CREATE,ZohoCreator.report.CREATE,ZohoCreator.report.READ,ZohoCreator.report.UPDATE,ZohoCreator.report.DELETE,ZohoCreator.meta.form.READ,ZohoCreator.meta.application.READ,ZohoCreator.dashboard.READ
 ```
 
-If it was generated with only read/create, edits and cancellations fail with an authorization error and a
+| Scope | Lets the app |
+| --- | --- |
+| `form.CREATE` | add records (bookings, contracts, contract cabins) |
+| `report.READ` | read records (floor plan, bookings, contracts) |
+| `report.UPDATE` | edit records (edit a booking or contract, renewal status, terminate) |
+| `report.DELETE` | delete records (cancel a booking, remove a cabin from a contract) |
+| `report.CREATE` | upload files to records |
+| `meta.form.READ`, `meta.application.READ`, `dashboard.READ` | read form/report structure and list the apps |
+
+For the planned agreement and addendum generation (Zoho Writer merge, saved to WorkDrive, and e-signature
+through Zoho Sign), add these too:
+
+```
+ZohoWriter.documentEditor.ALL,ZohoWriter.merge.ALL,WorkDrive.files.ALL,ZohoPC.files.ALL,ZohoSign.documents.CREATE,ZohoSign.documents.READ,ZohoSign.documents.UPDATE,ZohoSign.documents.DELETE,ZohoSign.templates.CREATE,ZohoSign.templates.READ,ZohoSign.templates.UPDATE
+```
+
+Put the Creator list and the Writer/Sign list together, comma separated, in one request. If the console rejects it
+as an invalid scope, remove the `ZohoSign...` ones (Zoho Sign may not be on the account) and try again.
+
+If the token was generated with only read/create, edits and cancellations fail with Zoho error `2945` and a
 new refresh token with these scopes is needed.
 
 ### Regenerating the refresh token
@@ -36,7 +52,7 @@ new refresh token with these scopes is needed.
 Zoho answers code `2945` ("invalid oauthscope") when the token is missing a scope. To fix it:
 
 1. Open the Zoho API Console (api-console.zoho.com), the same **Self Client** the app already uses.
-2. **Generate Code** tab: scope `ZohoCreator.form.CREATE,ZohoCreator.report.READ,ZohoCreator.report.UPDATE,ZohoCreator.report.DELETE`,
+2. **Generate Code** tab: the full comma-separated scope list from section 2 (Creator, plus Writer and Sign if you want them now),
    time duration 10 minutes, any description, then **Create** and copy the code.
 3. Within 10 minutes, exchange the code for a refresh token (the client id and secret are the ones already in Vercel):
    `POST https://accounts.zoho.com/oauth/v2/token` with form fields `grant_type=authorization_code`, `client_id`,
