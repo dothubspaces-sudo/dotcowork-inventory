@@ -15,9 +15,12 @@ function toCreatorDate(d) {
   return `${String(dt.getDate()).padStart(2,'0')}-${months[dt.getMonth()]}-${dt.getFullYear()}`;
 }
 
-// Creator's Start_Time/End_Time fields store "HH:mm:ss" (24hr). Our frontend sends "HH:MM".
+// Creator's Start_Time/End_Time fields store "HH:mm:ss" (24hr). The page sends "HH:MM" (or "HH:MM:SS" when a
+// booking is being edited), so normalise whichever arrives instead of appending seconds blindly.
 function toCreatorTime(t) {
-  return `${t}:00`
+  const mins = parseTimeToMinutes(t)
+  if (mins == null) return ''
+  return `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}:00`
 }
 
 function displayTime(mins) {

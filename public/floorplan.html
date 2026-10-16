@@ -2000,11 +2000,16 @@ function bookingRowFromRaw(b){
   }else{
     when=b.booking_start===b.booking_end?fmtFull(b.booking_start):`${fmtFull(b.booking_start)} → ${fmtFull(b.booking_end)}`;
   }
+  // Creator sends dates as 31-Dec-2027 and times as 20:00:00; the edit form's date inputs and the booking
+  // request need 2027-12-31 and 20:00, so they're normalised here, once.
+  const iso=d=>{const dt=parseDate(d);return dt&&!isNaN(dt)?dateStr(dt):(d||'');};
+  const hm=t=>{const m=/^(\d{1,2}):(\d{2})/.exec(t||'');return m?m[1].padStart(2,'0')+':'+m[2]:'';};
+  const bStart=iso(b.booking_start),bEnd=iso(b.booking_end);
   return {
     id:b.id,item_id:b.item_id||'',space:b.cabin_number,type,client:b.client||'—',purpose:b.purpose||'—',pax:b.pax||0,
-    when,hourly,date:b.booking_start,start:b.start_time,end:b.end_time,
-    booking_start:b.booking_start,booking_end:b.booking_end,
-    sortKey:b.booking_start+'_'+(b.start_time||'')
+    when,hourly,date:bStart,start:hm(b.start_time),end:hm(b.end_time),
+    booking_start:bStart,booking_end:bEnd,
+    sortKey:bStart+'_'+hm(b.start_time)
   };
 }
 
