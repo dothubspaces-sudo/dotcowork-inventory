@@ -1394,6 +1394,22 @@ function isHourly(label){const d=live[label];return d?!!d.hourly:(((PLANS[LOC]||
 
 let live={}, sel=null;
 
+// Meeting rooms are booked in the DOT Cowork portal when the server says so (ROOMS_IN_PORTAL). This view then shows
+// cabins and open workspace only, and meeting rooms read "In portal" with nothing to click.
+let roomsInPortal=false, portalUrl='';
+function portalNotice(){
+  alert('Meeting rooms are booked in the DOT Cowork portal now (Admin > Bookings and Floor plan), so they cannot be booked or changed here.'+(portalUrl?'\n\n'+portalUrl:''));
+}
+function showPortalBanner(){
+  let b=document.getElementById('portalBanner');
+  if(!roomsInPortal){if(b)b.remove();return;}
+  if(b)return;
+  b=document.createElement('div');b.id='portalBanner';
+  b.style.cssText='margin:0 0 12px;padding:10px 14px;background:#fff4e5;border:1px solid #f0c987;border-radius:8px;font-size:13px;color:#7a4b00';
+  b.textContent='Meeting rooms are now booked in the DOT Cowork portal. This screen is for viewing cabins and open workspace; meeting rooms show as "In portal".';
+  const host=document.getElementById('floorPlanView');if(host)host.insertBefore(b,host.firstChild);
+}
+
 // ── LOCATION ──
 // A location is picked once for the whole page. Only locations with a drawing show the SVG floor plan;
 // the others get an auto-built grid from their inventory.
@@ -1639,6 +1655,8 @@ async function load(){
 
       live={};(d.spaces||[]).forEach(s=>{live[s.cabin_number]=s;});
 
+      roomsInPortal=!!d.rooms_in_portal;portalUrl=d.portal_url||'';showPortalBanner();
+
       applyAll();
 
     }
@@ -1656,18 +1674,20 @@ function applyAll(){
       const num=parseInt(n);
       const cn=CABINS[num].label;
       const d=live[cn];const isOc=d&&d.status==='Booked';
-      isOc?oc++:av++;setCabin(num,isOc,d);
+      if(!(d&&d.portal_managed))isOc?oc++:av++;   // meeting rooms in the portal are not counted here
+      setCabin(num,isOc,d);
     });
 
     Object.keys(EXT).forEach(k=>{
 
       const sp=EXT[k],d=live[sp.key];const isOc=d&&d.status==='Booked';
 
-      isOc?oc++:av++;setExt(k,isOc,d);
+      if(!(d&&d.portal_managed))isOc?oc++:av++;
+      setExt(k,isOc,d);
 
     });
   }else{
-    Object.values(live).forEach(d=>{if(d.cabin_number)d.status==='Booked'?oc++:av++;});
+    Object.values(live).forEach(d=>{if(d.cabin_number&&!d.portal_managed)d.status==='Booked'?oc++:av++;});
     renderGrid();
   }
 
@@ -1737,6 +1757,15 @@ function setCabin(num,isOc,data){
 
   g.className='cg '+(isOc?'oc':'av');
 
+  if(hourly&&roomsInPortal){
+    // Booked in the portal: nothing here to click, and no availability claimed.
+    g.setAttribute('class','cg');g.onclick=portalNotice;
+    const rect0=g.querySelector('.cb');if(rect0){rect0.style.fill='rgba(120,120,120,.08)';rect0.style.stroke='rgba(120,120,120,.35)';}
+    const lb0=document.getElementById('lb'+num);if(lb0)lb0.textContent='In portal';
+    fitSvgText(document.getElementById('cl'+num),'');fitSvgText(document.getElementById('dt'+num),'');
+    return;
+  }
+
   // An hourly room always opens its time slots, even when it's fully booked today: that's how the team sees
   // which times are taken and can look at other days. Cabins are only clickable while free.
   g.onclick=hourly?()=>openSlotModal(label,CABINS[num],label):(isOc?null:()=>openModal(label,CABINS[num]));
@@ -1802,6 +1831,13 @@ function setExt(key,isOc,data){
 
   card.className='extcard'+(isOc?' occ':'');
 
+  if(data&&data.portal_managed&&roomsInPortal){
+    card.className='extcard';card.onclick=portalNotice;
+    badge.className='extbadge';badge.textContent='● In portal';
+    client.textContent='';dates.textContent='';
+    return;
+  }
+
   const apiKey=EXT[key].key;
 
   card.onclick=isOc?null:()=>openSlotModal(EXT[key].label,{seats:EXT[key].cap,type:EXT[key].label},apiKey);
@@ -1846,8 +1882,9 @@ function gridCard(s){
   }
   const seats=Number(s.capacity)||0;
   // Open workspace is leased by seats under Contracts, so it isn't booked from here.
-  const clickable=s.hourly||(!booked&&!s.open_workspace);
-  const status=s.open_workspace?(booked?'● Full':'● Available'):(booked?'● Booked':'● Available');
+  const inPortal=!!s.portal_managed&&roomsInPortal;
+  const clickable=!inPortal&&(s.hourly||(!booked&&!s.open_workspace));
+  const status=inPortal?'● In portal':(s.open_workspace?(booked?'● Full':'● Available'):(booked?'● Booked':'● Available'));
   return `<button type="button" class="gp-card ${booked?'oc':''}" data-name="${escHtml(s.cabin_number)}" ${clickable?'':'disabled'}>
     <div class="gp-name">${escHtml(displayName(s.cabin_number))}</div>
     <div class="gp-meta">${seats?seats+' seat'+(seats===1?'':'s'):''}${s.hourly?' · by the hour':''}</div>
@@ -2138,7 +2175,14 @@ function tip(e,num){
 
   const paxEl=document.getElementById('ttpax');
 
-  if(isHourly(cn)){
+  if(isHourly(cn)&&roomsInPortal){
+
+    s.className='tts';s.textContent='● In portal';
+    document.getElementById('ttc').textContent='';document.getElementById('tte').textContent='';
+    if(paxEl)paxEl.textContent='';
+    document.getElementById('tth').textContent='Booked in the DOT Cowork portal';
+
+  }else if(isHourly(cn)){
 
     const daySlots=(ld&&ld.slots?ld.slots:[]).filter(sl=>sl.date===(rangeStart||tod()));
     const shown=daySlots.slice(0,4);
@@ -2176,6 +2220,8 @@ document.addEventListener('mousemove',e=>{if(ttEl.style.display==='block')mv(e);
 // ── MODAL ──
 
 function openModal(title,data,timeCtx,editRecord){
+
+  if(roomsInPortal&&(timeCtx||isHourly(title))){portalNotice();return;}
 
   // The space is identified by its item id (cabin numbers repeat across locations); the number is kept for display.
   const itemId=(editRecord&&editRecord.item_id)||(live[title]&&live[title].item_id)||data.item_id||'';
@@ -2331,6 +2377,7 @@ function parseHM(s){const[h,m]=s.split(':').map(Number);return h*60+(m||0);}
 function hhmmLabel(s){return slotLabel(parseHM(s));}
 
 function openSlotModal(title,data,apiKey){
+  if(roomsInPortal){portalNotice();return;}   // only meeting rooms and event spaces open this picker
   slotCtx={title,data,apiKey,dayData:undefined};
   slotDay=rangeStart||tod();
   slotSelStart=null;slotSelEnd=null;

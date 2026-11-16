@@ -1,6 +1,7 @@
 const { getAccessToken, creatorGetAll, creatorPost, creatorPatch, creatorDelete, creatorRejection } = require('./zoho.js')
 const { requireAuth } = require('../lib/auth.js')
 const { classify, nameOf, locationOf } = require('../lib/spaces.js')
+const cfg = require('../lib/config.js')
 
 // Creator v2.1 adds records through the form, but updates/deletes go through a report.
 const BOOKINGS_REPORT = 'All_Spaces'
@@ -118,6 +119,9 @@ module.exports = async function handler(req, res) {
     const inventoryItemId = item.ID
     const spaceName = nameOf(item) || cabin_number
     const isHourly = classify(item) === 'hourly'
+    if (isHourly && cfg.roomsInPortal()) {
+      return res.status(403).json({ error: `${spaceName} is booked in the DOT Cowork portal now (Admin > Bookings), not here.`, portal_url: cfg.portalAdminUrl() })
+    }
     let startMin = null, endMin = null
 
     if (isHourly) {

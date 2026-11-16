@@ -97,6 +97,8 @@ module.exports = async function handler(req, res) {
       }
     });
 
+    const inPortal = cfg.roomsInPortal();
+
     // Step 4 — map every inventory item with its status
     const spaces = items.map(item => {
       const itemId  = String(item.ID);
@@ -115,6 +117,11 @@ module.exports = async function handler(req, res) {
         location:       locationOf(item).slug,
         kind,
       };
+
+      if (kind === 'hourly' && inPortal) {
+        // Meeting rooms are booked in the portal now, so what Zoho holds for them is out of date: say nothing about them.
+        return { ...base, hourly: true, portal_managed: true, status: "Available", slots: [] };
+      }
 
       if (kind === 'hourly') {
         const { slots, fullyBookedEveryDay } = buildHourlySlots(
@@ -167,7 +174,7 @@ module.exports = async function handler(req, res) {
         start_time:    b.Start_Time    || "",
         end_time:      b.End_Time      || "",
       };
-    }).filter(b => b.cabin_number && b.id);
+    }).filter(b => b.cabin_number && b.id && !(inPortal && b.hourly));
 
     // Booking IDs are what edit/cancel act on, so they're only sent to logged-in users.
     // The floor plan itself (status, client, times) stays visible to everyone as before.
@@ -178,6 +185,8 @@ module.exports = async function handler(req, res) {
       location: wantedLocation,
       date:     startDate,
       end_date: endDate,
+      rooms_in_portal: inPortal,
+      portal_url:      inPortal ? cfg.portalAdminUrl() : "",
       spaces:   authed ? spaces : stripIds(spaces),
       bookings: authed ? allBookings : [],
     });
